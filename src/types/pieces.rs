@@ -38,7 +38,7 @@ impl Color {
         }
     }
 
-    fn from_u32(val: u32) -> Self {
+    pub fn from_u32(val: u32) -> Self {
         match val {
             0 => Self::White,
             1 => Self::Black,
@@ -99,7 +99,7 @@ impl PieceName {
         }
     }
 
-    fn from_u32(val: u32) -> Self {
+    pub fn from_u32(val: u32) -> Self {
         assert!((0..7).contains(&val));
         unsafe { transmute(val as u8) }
     }

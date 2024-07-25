@@ -15,11 +15,12 @@ use super::{
     magics::{bishop_attacks, rook_attacks},
 };
 use arrayvec::ArrayVec;
+
 pub const MAX_LEN: usize = 218;
 pub type MoveList = ArrayVec<Move, MAX_LEN>;
 
 impl Board {
-    /// Generates all pseudolegal moves
+    /// Generates all legal moves
     pub fn legal_moves(&self) -> MoveList {
         let mut moves = MoveList::default();
 
@@ -56,27 +57,35 @@ impl Board {
     fn castling_moves(&self, threats: Bitboard, moves: &mut MoveList) {
         if self.stm == Color::White {
             if self.can_castle(Castle::WhiteKing)
-                && threats & Castle::WhiteKing.check_squares() == Bitboard::EMPTY
-                && self.occupancies() & Castle::WhiteKing.empty_squares() == Bitboard::EMPTY
+                && !threats.intersects(Castle::WhiteKing.check_squares())
+                && !self
+                    .occupancies()
+                    .intersects(Castle::WhiteKing.empty_squares())
             {
                 moves.push(Move::new(Square::E1, Square::G1, MoveType::KingCastle));
             }
             if self.can_castle(Castle::WhiteQueen)
-                && threats & Castle::WhiteQueen.check_squares() == Bitboard::EMPTY
-                && self.occupancies() & Castle::WhiteQueen.empty_squares() == Bitboard::EMPTY
+                && !threats.intersects(Castle::WhiteQueen.check_squares())
+                && !self
+                    .occupancies()
+                    .intersects(Castle::WhiteQueen.empty_squares())
             {
                 moves.push(Move::new(Square::E1, Square::C1, MoveType::QueenCastle));
             }
         } else {
             if self.can_castle(Castle::BlackKing)
-                && threats & Castle::BlackKing.check_squares() == Bitboard::EMPTY
-                && self.occupancies() & Castle::BlackKing.empty_squares() == Bitboard::EMPTY
+                && !threats.intersects(Castle::BlackKing.check_squares())
+                && !self
+                    .occupancies()
+                    .intersects(Castle::BlackKing.empty_squares())
             {
                 moves.push(Move::new(Square::E8, Square::G8, MoveType::KingCastle));
             }
             if self.can_castle(Castle::BlackQueen)
-                && threats & Castle::BlackQueen.check_squares() == Bitboard::EMPTY
-                && self.occupancies() & Castle::BlackQueen.empty_squares() == Bitboard::EMPTY
+                && !threats.intersects(Castle::BlackQueen.check_squares())
+                && !self
+                    .occupancies()
+                    .intersects(Castle::BlackQueen.empty_squares())
             {
                 moves.push(Move::new(Square::E8, Square::C8, MoveType::QueenCastle));
             }
@@ -206,12 +215,12 @@ impl Board {
     }
 
     fn get_en_passant(&self, dir: Direction) -> Option<Move> {
-        let sq = self.en_passant_square?.checked_shift(dir)?;
+        let sq = self.en_passant_square.checked_shift(dir)?;
         let pawn = sq.bitboard() & self.piece_color(self.stm, PieceName::Pawn);
         if pawn.is_empty() {
             return None;
         }
-        let dest = self.en_passant_square?;
+        let dest = self.en_passant_square;
         let src = dest.checked_shift(dir)?;
         let m = Move::new(src, dest, MoveType::EnPassant);
         let mut new_b = *self;

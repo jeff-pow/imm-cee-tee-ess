@@ -32,7 +32,7 @@ impl Board {
                     continue;
                 }
                 let square = row * 8 + idx;
-                let square = Square(square);
+                let square = Square(square as u8);
                 const PIECES: &str = "PpNnBbRrQqKk";
                 let Some(i) = PIECES.chars().position(|x| x == c) else {
                     panic!("Unrecognized char {c}, board could not be made");
@@ -50,7 +50,6 @@ impl Board {
             _ => panic!("Invalid turn"),
         };
         board.zobrist_hash = board.generate_hash();
-        board.pawn_hash = board.pawn_hash();
 
         // 10th bucket find who can still castle
         // Order of array is white king castle, white queen castle, black king castle, black queen castle
@@ -65,10 +64,9 @@ impl Board {
         let en_passant_letters: Vec<char> = next.chars().collect();
         let en_passant_idx = find_en_passant_square(&en_passant_letters);
         if let Some(idx) = en_passant_idx {
-            board.en_passant_square = Some(Square(idx));
+            board.en_passant_square = Square(idx as u8);
         }
         board.zobrist_hash = board.generate_hash();
-        board.pawn_hash = board.pawn_hash();
 
         let half_moves = iter.next();
         if let Some(half_moves) = half_moves {
@@ -78,12 +76,8 @@ impl Board {
         }
 
         // Full number of moves in the game: starts from 1 and incremented after black's first move
-        let full_moves = iter.next();
-        if let Some(full_moves) = full_moves {
-            if let Ok(full_moves) = full_moves.parse() {
-                board.num_moves = full_moves;
-            }
-        }
+        let _full_moves = iter.next();
+
         assert_eq!(iter.next(), None);
         board
     }
@@ -141,8 +135,8 @@ impl Board {
         }
 
         str += " ";
-        if let Some(sq) = self.en_passant_square {
-            str += SQUARE_NAMES[sq];
+        if self.can_en_passant() {
+            str += SQUARE_NAMES[self.en_passant_square];
         } else {
             str += "-";
         }
@@ -150,20 +144,21 @@ impl Board {
         str += " ";
         str += &self.half_moves.to_string();
 
-        str += " ";
-        str += &self.num_moves.to_string();
+        // We don't actually keep track of total number of moves so just throw a bogus number in
+        // there
+        str += " 1";
 
         str
     }
 }
 
-fn parse_castling(buf: &str) -> u32 {
+fn parse_castling(buf: &str) -> u8 {
     let rights = buf.chars().fold(0, |x, ch| {
         x | match ch {
-            'K' => Castle::WhiteKing as u32,
-            'Q' => Castle::WhiteQueen as u32,
-            'k' => Castle::BlackKing as u32,
-            'q' => Castle::BlackQueen as u32,
+            'K' => Castle::WhiteKing as u8,
+            'Q' => Castle::WhiteQueen as u8,
+            'k' => Castle::BlackKing as u8,
+            'q' => Castle::BlackQueen as u8,
             _ => 0,
         }
     });
@@ -216,28 +211,28 @@ mod fen_tests {
     fn test_parse_castling_white_king() {
         let input = "K";
         let result = parse_castling(input);
-        assert_eq!(result, Castle::WhiteKing as u32);
+        assert_eq!(result, Castle::WhiteKing as u8);
     }
 
     #[test]
     fn test_parse_castling_white_queen() {
         let input = "Q";
         let result = parse_castling(input);
-        assert_eq!(result, Castle::WhiteQueen as u32);
+        assert_eq!(result, Castle::WhiteQueen as u8);
     }
 
     #[test]
     fn test_parse_castling_black_king() {
         let input = "k";
         let result = parse_castling(input);
-        assert_eq!(result, Castle::BlackKing as u32);
+        assert_eq!(result, Castle::BlackKing as u8);
     }
 
     #[test]
     fn test_parse_castling_black_queen() {
         let input = "q";
         let result = parse_castling(input);
-        assert_eq!(result, Castle::BlackQueen as u32);
+        assert_eq!(result, Castle::BlackQueen as u8);
     }
 
     #[test]
@@ -253,10 +248,10 @@ mod fen_tests {
         let result = parse_castling(input);
         // You need to define the expected result based on the combination of castling rights.
         // For example, if all castling rights are allowed (KQkq), you can set the expected result to a specific value.
-        let expected_result = Castle::WhiteKing as u32
-            | Castle::WhiteQueen as u32
-            | Castle::BlackKing as u32
-            | Castle::BlackQueen as u32;
+        let expected_result = Castle::WhiteKing as u8
+            | Castle::WhiteQueen as u8
+            | Castle::BlackKing as u8
+            | Castle::BlackQueen as u8;
         assert_eq!(result, expected_result);
     }
 
@@ -265,7 +260,7 @@ mod fen_tests {
         let input = "Kk";
         let result = parse_castling(input);
         // Define the expected result for the combination of castling rights in the input.
-        let expected_result = Castle::WhiteKing as u32 | Castle::BlackKing as u32;
+        let expected_result = Castle::WhiteKing as u8 | Castle::BlackKing as u8;
         assert_eq!(result, expected_result);
     }
 
@@ -275,8 +270,8 @@ mod fen_tests {
         for fen in [
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
             "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQ e3 0 1",
-            "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w Kq c6 0 2",
-            "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b - - 1 2",
+            "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w Kq c6 0 1",
+            "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b - - 1 1",
         ] {
             assert_eq!(fen, Board::from_fen(fen).to_fen());
         }

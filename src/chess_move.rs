@@ -64,7 +64,20 @@ impl Move {
     }
 
     pub fn is_capture(self, board: &Board) -> bool {
-        board.occupancies().occupied(self.to())
+        let c = matches!(
+            self.flag(),
+            Capture
+                | QueenCapturePromotion
+                | RookCapturePromotion
+                | BishopCapturePromotion
+                | KnightCapturePromotion
+        );
+        if c {
+            assert_ne!(Piece::None, board.piece_at(self.to()));
+        } else {
+            assert_eq!(Piece::None, board.piece_at(self.to()));
+        }
+        c
     }
 
     pub fn is_castle(self) -> bool {
@@ -94,11 +107,11 @@ impl Move {
     }
 
     pub const fn from(self) -> Square {
-        Square(self.0.get() as u32 & 0b11_1111)
+        Square((self.0.get() & 0b11_1111) as u8)
     }
 
     pub const fn to(self) -> Square {
-        Square((self.0.get() as u32) >> 6 & 0b11_1111)
+        Square((self.0.get() >> 6 & 0b11_1111) as u8)
     }
 
     pub fn is_tactical(self, board: &Board) -> bool {
@@ -156,11 +169,11 @@ impl Move {
         // against letters or some other workaround
         let start_column = vec[0].to_digit(20).unwrap() - 10;
         let start_row = (vec[1].to_digit(10).unwrap() - 1) * 8;
-        let origin_sq = Square(start_row + start_column);
+        let origin_sq = Square((start_row + start_column) as u8);
 
         let end_column = vec[2].to_digit(20).unwrap() - 10;
         let end_row = (vec[3].to_digit(10).unwrap() - 1) * 8;
-        let dest_sq = Square(end_row + end_column);
+        let dest_sq = Square((end_row + end_column) as u8);
 
         let promotion = if vec.len() > 4 {
             match vec[4] {
@@ -330,7 +343,7 @@ impl Castle {
 }
 
 #[rustfmt::skip]
-pub const CASTLING_RIGHTS: [u32; 64] = [
+pub const CASTLING_RIGHTS: [u8; 64] = [
     13, 15, 15, 15, 12, 15, 15, 14,
     15, 15, 15, 15, 15, 15, 15, 15,
     15, 15, 15, 15, 15, 15, 15, 15,

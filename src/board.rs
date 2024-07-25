@@ -23,15 +23,12 @@ use crate::{
 pub struct Board {
     bitboards: [Bitboard; NUM_PIECES],
     color_occupancies: [Bitboard; 2],
-    mailbox: [Piece; 64],
     /// Side to move
     pub stm: Color,
-    pub castling_rights: u32,
-    pub en_passant_square: Option<Square>,
-    pub num_moves: u16,
-    pub half_moves: u16,
+    pub castling_rights: u8,
+    pub en_passant_square: Square,
+    pub half_moves: u8,
     pub zobrist_hash: u64,
-    pub pawn_hash: u64,
 }
 
 impl Default for Board {
@@ -66,7 +63,19 @@ impl Board {
     }
 
     pub fn piece_at(&self, sq: Square) -> Piece {
-        self.mailbox[sq]
+        let piece_name = self.bitboards.iter().position(|bb| bb.contains(sq));
+        let Some(piece_name) = piece_name else {
+            return Piece::None;
+        };
+        let color = self
+            .color_occupancies
+            .iter()
+            .position(|bb| bb.contains(sq))
+            .unwrap();
+        Piece::new(
+            PieceName::from_u32(piece_name as u32),
+            Color::from_u32(color as u32),
+        )
     }
 
     fn is_material_draw(&self) -> bool {
@@ -135,40 +144,32 @@ impl Board {
         .is_empty()
     }
 
-    pub const fn can_en_passant(&self) -> bool {
-        self.en_passant_square.is_some()
+    pub fn can_en_passant(&self) -> bool {
+        self.en_passant_square != Square::NONE
     }
 
     pub const fn can_castle(&self, c: Castle) -> bool {
         match c {
-            Castle::WhiteKing => self.castling_rights & Castle::WhiteKing as u32 != 0,
-            Castle::WhiteQueen => self.castling_rights & Castle::WhiteQueen as u32 != 0,
-            Castle::BlackKing => self.castling_rights & Castle::BlackKing as u32 != 0,
-            Castle::BlackQueen => self.castling_rights & Castle::BlackQueen as u32 != 0,
+            Castle::WhiteKing => self.castling_rights & Castle::WhiteKing as u8 != 0,
+            Castle::WhiteQueen => self.castling_rights & Castle::WhiteQueen as u8 != 0,
+            Castle::BlackKing => self.castling_rights & Castle::BlackKing as u8 != 0,
+            Castle::BlackQueen => self.castling_rights & Castle::BlackQueen as u8 != 0,
             Castle::None => panic!(),
         }
     }
 
     pub fn place_piece(&mut self, piece: Piece, sq: Square) {
-        self.mailbox[sq] = piece;
         self.bitboards[piece.name()] ^= sq.bitboard();
         self.color_occupancies[piece.color()] ^= sq.bitboard();
         self.zobrist_hash ^= ZOBRIST.piece[piece][sq];
-        if piece.name() == PieceName::Pawn {
-            self.pawn_hash ^= ZOBRIST.piece[piece][sq];
-        }
     }
 
     fn remove_piece(&mut self, sq: Square) {
-        let piece = self.mailbox[sq];
+        let piece = self.piece_at(sq);
         if piece != Piece::None {
-            self.mailbox[sq] = Piece::None;
             self.bitboards[piece.name()] ^= sq.bitboard();
             self.color_occupancies[piece.color()] ^= sq.bitboard();
             self.zobrist_hash ^= ZOBRIST.piece[piece][sq];
-            if piece.name() == PieceName::Pawn {
-                self.pawn_hash ^= ZOBRIST.piece[piece][sq];
-            }
         }
     }
 
@@ -291,35 +292,25 @@ impl Board {
             }
         }
 
-        // If we are in check after all pieces have been moved, this move is illegal and we return
-        // false to denote so
-        // TODO: Remove these debugging statements
-        // if !self.king_square(self.stm).is_valid() {
-        //     panic!()
-        // }
-        // if self.square_under_attack(!self.stm, self.king_square(self.stm)) {
-        //     panic!()
-        // }
-
         // Xor out the old en passant square hash
-        if let Some(sq) = self.en_passant_square {
-            self.zobrist_hash ^= ZOBRIST.en_passant[sq];
+        if self.can_en_passant() {
+            self.zobrist_hash ^= ZOBRIST.en_passant[self.en_passant_square];
         }
         // If the end index of a move is 16 squares from the start (and a pawn moved), an en passant is possible
-        self.en_passant_square = None;
+        self.en_passant_square = Square::NONE;
         if m.flag() == MoveType::DoublePush {
             match self.stm {
                 Color::White => {
-                    self.en_passant_square = Some(m.to().shift(South));
+                    self.en_passant_square = m.to().shift(South);
                 }
                 Color::Black => {
-                    self.en_passant_square = Some(m.to().shift(North));
+                    self.en_passant_square = m.to().shift(North);
                 }
             }
         }
         // Xor in the new en passant square hash
-        if let Some(sq) = self.en_passant_square {
-            self.zobrist_hash ^= ZOBRIST.en_passant[sq];
+        if self.can_en_passant() {
+            self.zobrist_hash ^= ZOBRIST.en_passant[self.en_passant_square];
         }
 
         // If a piece isn't captured and a pawn isn't moved, increment the half move clock.
@@ -337,19 +328,16 @@ impl Board {
 
         self.stm = !self.stm;
         self.zobrist_hash ^= ZOBRIST.turn;
-
-        self.num_moves += 1;
     }
 
     pub fn make_null_move(&mut self) {
         self.stm = !self.stm;
         self.zobrist_hash ^= ZOBRIST.turn;
-        self.num_moves += 1;
         self.half_moves += 1;
-        if let Some(sq) = self.en_passant_square {
-            self.zobrist_hash ^= ZOBRIST.en_passant[sq];
+        if self.can_en_passant() {
+            self.zobrist_hash ^= ZOBRIST.en_passant[self.en_passant_square];
         }
-        self.en_passant_square = None;
+        self.en_passant_square = Square::NONE;
     }
 
     pub fn mat_scale(&self) -> i32 {
@@ -374,12 +362,9 @@ impl Board {
         Self {
             bitboards: [Bitboard::EMPTY; 6],
             color_occupancies: [Bitboard::EMPTY; 2],
-            mailbox: [Piece::None; 64],
             castling_rights: 0,
             stm: Color::White,
-            en_passant_square: None,
-            num_moves: 0,
-            pawn_hash: 0,
+            en_passant_square: Square::NONE,
             half_moves: 0,
             zobrist_hash: 0,
         }
@@ -445,14 +430,11 @@ impl fmt::Debug for Board {
         };
         str += "\n";
         str += "En Passant Square: ";
-        if let Some(s) = &self.en_passant_square {
-            str += &s.to_string();
+        if self.can_en_passant() {
+            str += &self.en_passant_square.to_string();
         } else {
             str += "None";
         }
-        str += "\n";
-        str += "Num moves made: ";
-        str += &self.num_moves.to_string();
         str += "\n";
 
         write!(f, "{str}")

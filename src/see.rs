@@ -68,7 +68,7 @@ impl Board {
 
         let mut occupied = self.occupancies() ^ from.bitboard() ^ to.bitboard();
         if m.is_en_passant() {
-            occupied ^= self.en_passant_square.unwrap().bitboard();
+            occupied ^= self.en_passant_square.bitboard();
         }
 
         let mut attackers = self.attackers(to, occupied) & occupied;

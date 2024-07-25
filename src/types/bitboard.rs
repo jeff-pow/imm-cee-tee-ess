@@ -22,7 +22,7 @@ impl Bitboard {
     }
 
     pub const fn lsb(self) -> Square {
-        unsafe { std::mem::transmute(self.0.trailing_zeros()) }
+        unsafe { std::mem::transmute(self.0.trailing_zeros() as u8) }
     }
 
     pub fn occupied(self, sq: Square) -> bool {

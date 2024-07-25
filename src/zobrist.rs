@@ -1,9 +1,4 @@
-use crate::{
-    board::Board,
-    const_array,
-    magics::rand_u64,
-    types::pieces::{Color, PieceName},
-};
+use crate::{board::Board, const_array, magics::rand_u64, types::pieces::Color};
 
 #[derive(Debug, PartialEq, Eq)]
 /// Contains hashes for each piece square combination, castling possibility, en passant square, and
@@ -53,8 +48,8 @@ impl Board {
             hash ^= ZOBRIST.piece[p][sq];
         }
 
-        if let Some(x) = self.en_passant_square {
-            hash ^= ZOBRIST.en_passant[x];
+        if self.can_en_passant() {
+            hash ^= ZOBRIST.en_passant[self.en_passant_square];
         }
 
         hash ^= ZOBRIST.castling[self.castling_rights as usize];
@@ -62,17 +57,6 @@ impl Board {
         if self.stm == Color::Black {
             hash ^= ZOBRIST.turn;
         }
-
-        hash
-    }
-
-    pub fn pawn_hash(&self) -> u64 {
-        let mut hash = 0;
-
-        for sq in self.piece(PieceName::Pawn) {
-            hash ^= ZOBRIST.piece[self.piece_at(sq)][sq];
-        }
-        // TODO: Test adding stm hash and/or king squares
 
         hash
     }

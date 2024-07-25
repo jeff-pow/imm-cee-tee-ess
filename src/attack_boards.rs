@@ -90,7 +90,7 @@ pub const BETWEEN_SQUARES: [[Bitboard; 64]; 64] = {
                     arr[src as usize][dest as usize].0 |= i.bitboard().0;
                     i = i.shift(Direction::South);
                 }
-            } else if (dest - src) % Direction::NorthWest as u32 == 0
+            } else if (dest - src) % Direction::NorthWest as u8 == 0
                 && Square(dest).file() < Square(src).file()
             {
                 let mut i = Square(dest).shift(Direction::SouthEast);
@@ -99,7 +99,7 @@ pub const BETWEEN_SQUARES: [[Bitboard; 64]; 64] = {
                     arr[src as usize][dest as usize].0 |= i.bitboard().0;
                     i = i.shift(Direction::SouthEast);
                 }
-            } else if (dest - src) % Direction::NorthEast as u32 == 0
+            } else if (dest - src) % Direction::NorthEast as u8 == 0
                 && Square(dest).file() > Square(src).file()
             {
                 let mut i = Square(dest).shift(Direction::SouthWest);
@@ -129,8 +129,8 @@ pub const BETWEEN_SQUARES: [[Bitboard; 64]; 64] = {
 
 const fn pinned_attack(king: usize, pinned: usize) -> Bitboard {
     let mut valid = 0;
-    let king = Square(king as u32);
-    let pinned = Square(pinned as u32);
+    let king = Square(king as u8);
+    let pinned = Square(pinned as u8);
     let Some(dir) = pinned.dir_to(king) else {
         return Bitboard::EMPTY;
     };

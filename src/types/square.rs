@@ -11,11 +11,15 @@ use crate::{
 };
 
 #[derive(Clone, Copy, Eq, PartialEq)]
-pub struct Square(pub u32);
+pub struct Square(pub u8);
 
 impl Square {
+    pub const NONE: Square = Square(65);
     /// Function checks whether a shift is valid before executing it
     pub const fn checked_shift(self, dir: Direction) -> Option<Self> {
+        if self.0 == Square::NONE.0 {
+            return None;
+        }
         let s = self.bitboard().shift(dir);
         if s.0 != 0 {
             Some(s.lsb())
@@ -32,14 +36,14 @@ impl Square {
 
     /// Returns the max dist of file or rank between two squares
     #[rustfmt::skip]
-    pub const fn dist(self, other: Self) -> u32 {
+    pub const fn dist(self, other: Self) -> u8 {
         let this = self.file().abs_diff(other.file());
         let other = self.rank().abs_diff(other.rank());
         if this > other { this } else { other }
     }
 
     /// Rank is the horizontal component of the piece (y-coord)
-    pub const fn rank(self) -> u32 {
+    pub const fn rank(self) -> u8 {
         self.0 >> 3
     }
 
@@ -60,7 +64,7 @@ impl Square {
     }
 
     /// File is the vertical component of the piece (x-coord)
-    pub const fn file(self) -> u32 {
+    pub const fn file(self) -> u8 {
         self.0 & 0b111
     }
 
