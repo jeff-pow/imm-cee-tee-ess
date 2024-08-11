@@ -1,10 +1,9 @@
 EXE = imm-cee-tee-ess
-LXE = imm-cee-tee-ess
 
 ifeq ($(OS),Windows_NT)
 	NAME := $(EXE).exe
 else
-	NAME := $(LXE)
+	NAME := $(EXE)
 endif
 
 openbench:
