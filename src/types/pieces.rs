@@ -71,15 +71,7 @@ impl PieceName {
     }
 
     pub fn iter() -> impl Iterator<Item = Self> {
-        [
-            Self::Pawn,
-            Self::Knight,
-            Self::Bishop,
-            Self::Rook,
-            Self::Queen,
-            Self::King,
-        ]
-        .into_iter()
+        [Self::Pawn, Self::Knight, Self::Bishop, Self::Rook, Self::Queen, Self::King].into_iter()
     }
 }
 
@@ -198,12 +190,35 @@ impl From<usize> for PieceName {
     }
 }
 
+impl From<PieceName> for usize {
+    fn from(value: PieceName) -> Self {
+        match value {
+            PieceName::Pawn => PieceName::Pawn as usize,
+            PieceName::Knight => PieceName::Knight as usize,
+            PieceName::Bishop => PieceName::Bishop as usize,
+            PieceName::Rook => PieceName::Rook as usize,
+            PieceName::Queen => PieceName::Queen as usize,
+            PieceName::King => PieceName::King as usize,
+            PieceName::None => PieceName::None as usize,
+        }
+    }
+}
+
 impl From<usize> for Color {
     fn from(value: usize) -> Self {
         match value {
             0 => Self::White,
             1 => Self::Black,
             _ => unreachable!(),
+        }
+    }
+}
+
+impl From<Color> for usize {
+    fn from(value: Color) -> Self {
+        match value {
+            Color::White => Color::White as usize,
+            Color::Black => Color::Black as usize,
         }
     }
 }
@@ -215,35 +230,17 @@ mod piece_tests {
     #[test]
     fn test_new_piece() {
         assert_eq!(Piece::new(PieceName::Pawn, Color::White), Piece::WhitePawn);
-        assert_eq!(
-            Piece::new(PieceName::Knight, Color::White),
-            Piece::WhiteKnight
-        );
-        assert_eq!(
-            Piece::new(PieceName::Bishop, Color::White),
-            Piece::WhiteBishop
-        );
+        assert_eq!(Piece::new(PieceName::Knight, Color::White), Piece::WhiteKnight);
+        assert_eq!(Piece::new(PieceName::Bishop, Color::White), Piece::WhiteBishop);
         assert_eq!(Piece::new(PieceName::Rook, Color::White), Piece::WhiteRook);
-        assert_eq!(
-            Piece::new(PieceName::Queen, Color::White),
-            Piece::WhiteQueen
-        );
+        assert_eq!(Piece::new(PieceName::Queen, Color::White), Piece::WhiteQueen);
         assert_eq!(Piece::new(PieceName::King, Color::White), Piece::WhiteKing);
 
         assert_eq!(Piece::new(PieceName::Pawn, Color::Black), Piece::BlackPawn);
-        assert_eq!(
-            Piece::new(PieceName::Knight, Color::Black),
-            Piece::BlackKnight
-        );
-        assert_eq!(
-            Piece::new(PieceName::Bishop, Color::Black),
-            Piece::BlackBishop
-        );
+        assert_eq!(Piece::new(PieceName::Knight, Color::Black), Piece::BlackKnight);
+        assert_eq!(Piece::new(PieceName::Bishop, Color::Black), Piece::BlackBishop);
         assert_eq!(Piece::new(PieceName::Rook, Color::Black), Piece::BlackRook);
-        assert_eq!(
-            Piece::new(PieceName::Queen, Color::Black),
-            Piece::BlackQueen
-        );
+        assert_eq!(Piece::new(PieceName::Queen, Color::Black), Piece::BlackQueen);
         assert_eq!(Piece::new(PieceName::King, Color::Black), Piece::BlackKing);
 
         for color in [Color::White, Color::Black] {

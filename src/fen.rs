@@ -249,10 +249,8 @@ mod fen_tests {
         let result = parse_castling(input);
         // You need to define the expected result based on the combination of castling rights.
         // For example, if all castling rights are allowed (KQkq), you can set the expected result to a specific value.
-        let expected_result = Castle::WhiteKing as u8
-            | Castle::WhiteQueen as u8
-            | Castle::BlackKing as u8
-            | Castle::BlackQueen as u8;
+        let expected_result =
+            Castle::WhiteKing as u8 | Castle::WhiteQueen as u8 | Castle::BlackKing as u8 | Castle::BlackQueen as u8;
         assert_eq!(result, expected_result);
     }
 

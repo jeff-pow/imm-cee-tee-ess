@@ -12,6 +12,7 @@ mod bench;
 mod board;
 mod chess_move;
 mod edge;
+mod eval;
 mod fen;
 mod game_time;
 mod hashtable;

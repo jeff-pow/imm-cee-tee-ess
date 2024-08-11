@@ -58,34 +58,26 @@ impl Board {
         if self.stm == Color::White {
             if self.can_castle(Castle::WhiteKing)
                 && !threats.intersects(Castle::WhiteKing.check_squares())
-                && !self
-                    .occupancies()
-                    .intersects(Castle::WhiteKing.empty_squares())
+                && !self.occupancies().intersects(Castle::WhiteKing.empty_squares())
             {
                 moves.push(Move::new(Square::E1, Square::G1, MoveType::KingCastle));
             }
             if self.can_castle(Castle::WhiteQueen)
                 && !threats.intersects(Castle::WhiteQueen.check_squares())
-                && !self
-                    .occupancies()
-                    .intersects(Castle::WhiteQueen.empty_squares())
+                && !self.occupancies().intersects(Castle::WhiteQueen.empty_squares())
             {
                 moves.push(Move::new(Square::E1, Square::C1, MoveType::QueenCastle));
             }
         } else {
             if self.can_castle(Castle::BlackKing)
                 && !threats.intersects(Castle::BlackKing.check_squares())
-                && !self
-                    .occupancies()
-                    .intersects(Castle::BlackKing.empty_squares())
+                && !self.occupancies().intersects(Castle::BlackKing.empty_squares())
             {
                 moves.push(Move::new(Square::E8, Square::G8, MoveType::KingCastle));
             }
             if self.can_castle(Castle::BlackQueen)
                 && !threats.intersects(Castle::BlackQueen.check_squares())
-                && !self
-                    .occupancies()
-                    .intersects(Castle::BlackQueen.empty_squares())
+                && !self.occupancies().intersects(Castle::BlackQueen.empty_squares())
             {
                 moves.push(Move::new(Square::E8, Square::C8, MoveType::QueenCastle));
             }
@@ -97,57 +89,27 @@ impl Board {
         let vacancies = !self.occupancies();
         let enemies = self.color(!self.stm);
 
-        let non_promotions = pawns
-            & if self.stm == Color::White {
-                !RANKS[6]
-            } else {
-                !RANKS[1]
-            };
-        let promotions = pawns
-            & if self.stm == Color::White {
-                RANKS[6]
-            } else {
-                RANKS[1]
-            };
+        let non_promotions = pawns & if self.stm == Color::White { !RANKS[6] } else { !RANKS[1] };
+        let promotions = pawns & if self.stm == Color::White { RANKS[6] } else { RANKS[1] };
 
-        let up = if self.stm == Color::White {
-            North
-        } else {
-            South
-        };
-        let right = if self.stm == Color::White {
-            NorthEast
-        } else {
-            SouthWest
-        };
-        let left = if self.stm == Color::White {
-            NorthWest
-        } else {
-            SouthEast
-        };
+        let up = if self.stm == Color::White { North } else { South };
+        let right = if self.stm == Color::White { NorthEast } else { SouthWest };
+        let left = if self.stm == Color::White { NorthWest } else { SouthEast };
 
-        let rank3 = if self.stm == Color::White {
-            RANKS[2]
-        } else {
-            RANKS[5]
-        };
+        let rank3 = if self.stm == Color::White { RANKS[2] } else { RANKS[5] };
 
         // Single and double pawn pushes w/o captures
         let push_one = vacancies & non_promotions.shift(up);
         let push_two = vacancies & (push_one & rank3).shift(up);
         for dest in push_one & dests {
             let src = dest.shift(up.opp());
-            if !pinned.contains(src)
-                || valid_pinned_moves(self.king_square(self.stm), src).contains(dest)
-            {
+            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
                 moves.push(Move::new(src, dest, MoveType::Normal));
             }
         }
         for dest in push_two & dests {
             let src = dest.shift(up.opp()).shift(up.opp());
-            if !pinned.contains(src)
-                || valid_pinned_moves(self.king_square(self.stm), src).contains(dest)
-            {
+            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
                 moves.push(Move::new(src, dest, MoveType::DoublePush));
             }
         }
@@ -158,25 +120,19 @@ impl Board {
         let right_capture_promotions = promotions.shift(right) & enemies;
         for dest in no_capture_promotions & dests {
             let src = dest.shift(up.opp());
-            if !pinned.contains(src)
-                || valid_pinned_moves(self.king_square(self.stm), src).contains(dest)
-            {
+            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
                 gen_promotions::<false>(src, dest, moves);
             }
         }
         for dest in left_capture_promotions & dests {
             let src = dest.shift(left.opp());
-            if !pinned.contains(src)
-                || valid_pinned_moves(self.king_square(self.stm), src).contains(dest)
-            {
+            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
                 gen_promotions::<true>(src, dest, moves);
             }
         }
         for dest in right_capture_promotions & dests {
             let src = dest.shift(right.opp());
-            if !pinned.contains(src)
-                || valid_pinned_moves(self.king_square(self.stm), src).contains(dest)
-            {
+            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
                 gen_promotions::<true>(src, dest, moves);
             }
         }
@@ -187,17 +143,13 @@ impl Board {
             let right_captures = non_promotions.shift(right) & enemies;
             for dest in left_captures & dests {
                 let src = dest.shift(left.opp());
-                if !pinned.contains(src)
-                    || valid_pinned_moves(self.king_square(self.stm), src).contains(dest)
-                {
+                if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
                     moves.push(Move::new(src, dest, MoveType::Capture));
                 }
             }
             for dest in right_captures & dests {
                 let src = dest.shift(right.opp());
-                if !pinned.contains(src)
-                    || valid_pinned_moves(self.king_square(self.stm), src).contains(dest)
-                {
+                if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
                     moves.push(Move::new(src, dest, MoveType::Capture));
                 }
             }
@@ -281,12 +233,7 @@ fn gen_promotions<const IS_CAP: bool>(src: Square, dest: Square, moves: &mut Mov
             MoveType::KnightCapturePromotion,
         ]
     } else {
-        [
-            MoveType::QueenPromotion,
-            MoveType::RookPromotion,
-            MoveType::BishopPromotion,
-            MoveType::KnightPromotion,
-        ]
+        [MoveType::QueenPromotion, MoveType::RookPromotion, MoveType::BishopPromotion, MoveType::KnightPromotion]
     };
     for promo in promos {
         moves.push(Move::new(src, dest, promo));
