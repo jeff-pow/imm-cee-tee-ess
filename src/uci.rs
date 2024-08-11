@@ -69,13 +69,9 @@ pub fn main_loop() -> ! {
                 uci_opts();
             }
             "setoption" => match input[..] {
-                ["setoption", "name", "Hash", "value", _x] => {
-                    todo!()
-                }
-                ["setoption", "name", "Clear", "Hash"] => todo!(),
-                ["setoption", "name", "Threads", "value", _x] => {
-                    todo!()
-                }
+                ["setoption", "name", "Hash", "value", _x] => (),
+                ["setoption", "name", "Clear", "Hash"] => (),
+                ["setoption", "name", "Threads", "value", _x] => (),
                 _ => println!("Option not recognized"),
             },
             _ => (),
@@ -86,8 +82,8 @@ pub fn main_loop() -> ! {
 fn uci_opts() {
     println!("id name {ENGINE_NAME} {VERSION}");
     println!("id author {}", env!("CARGO_PKG_AUTHORS"));
-    // println!("option name Threads type spin default 1 min 1 max 64");
-    // println!("option name Hash type spin default 16 min 1 max 8388608");
+    println!("option name Threads type spin default 1 min 1 max 1");
+    println!("option name Hash type spin default 32 min 32 max 32");
     println!("uciok");
 }
 
