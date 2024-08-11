@@ -123,7 +123,7 @@ impl Arena {
 
     // Section 3.4 https://project.dke.maastrichtuniversity.nl/games/files/phd/Chaslot_thesis.pdf
     fn final_move_selection(&self, ptr: ArenaIndex) -> Option<&Edge> {
-        let f = |edge: &Edge| edge.visits();
+        let f = |edge: &Edge| if edge.visits() == 0 { f32::NEG_INFINITY } else { edge.q() };
         self[ptr].edges().iter().max_by(|&e1, &e2| f(e1).partial_cmp(&f(e2)).unwrap())
     }
 
