@@ -45,6 +45,7 @@ pub enum MoveType {
 }
 
 const _: () = assert!(std::mem::size_of::<Move>() == std::mem::size_of::<Option<Move>>());
+const _: () = assert!(2 == std::mem::size_of::<Move>(), "Move should be 2 bytes");
 
 /// A move needs 16 bits to be stored
 ///
@@ -57,6 +58,7 @@ pub struct Move(pub NonZeroU16);
 
 impl Move {
     pub const NULL: Option<Self> = None;
+    pub const INVALID: Self = Move(unsafe { NonZeroU16::new_unchecked(65) });
 
     pub const fn new(origin: Square, destination: Square, move_type: MoveType) -> Self {
         let m = origin.0 as u16 | ((destination.0 as u16) << 6) | ((move_type as u16) << 12);
@@ -89,7 +91,24 @@ impl Move {
     }
 
     pub fn flag(self) -> MoveType {
-        unsafe { std::mem::transmute((self.0.get() >> 12) as u8 & 0b1111) }
+        let f = (self.0.get() >> 12) as u8 & 0b1111;
+        match f {
+            0 => Normal,
+            1 => QueenPromotion,
+            2 => RookPromotion,
+            3 => BishopPromotion,
+            4 => KnightPromotion,
+            5 => DoublePush,
+            6 => KingCastle,
+            7 => QueenCastle,
+            8 => EnPassant,
+            9 => Capture,
+            10 => QueenCapturePromotion,
+            11 => RookCapturePromotion,
+            12 => BishopCapturePromotion,
+            13 => KnightCapturePromotion,
+            _ => unreachable!(),
+        }
     }
 
     pub fn is_en_passant(self) -> bool {
@@ -162,7 +181,7 @@ impl Move {
     }
 
     /// Method converts a san move provided by UCI framework into a Move struct
-    pub fn from_san(str: &str, board: &Board) -> Move {
+    pub fn from_san(str: &str, board: &Board) -> Self {
         let vec: Vec<char> = str.chars().collect();
 
         // Using base 20 allows program to convert letters directly to numbers instead of matching
@@ -175,17 +194,26 @@ impl Move {
         let end_row = (vec[3].to_digit(10).unwrap() - 1) * 8;
         let dest_sq = Square((end_row + end_column) as u8);
 
-        let promotion = if vec.len() > 4 {
-            match vec[4] {
-                'q' => Some(PieceName::Queen),
-                'r' => Some(PieceName::Rook),
-                'b' => Some(PieceName::Bishop),
-                'n' => Some(PieceName::Knight),
-                _ => panic!(),
-            }
-        } else {
-            None
+        let promotion = match vec.get(4) {
+            Some('q') => Some(PieceName::Queen),
+            Some('r') => Some(PieceName::Rook),
+            Some('b') => Some(PieceName::Bishop),
+            Some('n') => Some(PieceName::Knight),
+            None => None,
+            x => panic!("Invalid letter in promotion spot of move: {x:?}"),
         };
+
+        // let promotion = if vec.len() > 4 {
+        //     match vec[4] {
+        //         'q' => Some(PieceName::Queen),
+        //         'r' => Some(PieceName::Rook),
+        //         'b' => Some(PieceName::Bishop),
+        //         'n' => Some(PieceName::Knight),
+        //         _ => panic!(),
+        //     }
+        // } else {
+        //     None
+        // };
         let piece_moving = board.piece_at(origin_sq);
         assert!(piece_moving != Piece::None);
         let captured = board.piece_at(dest_sq);
@@ -213,10 +241,10 @@ impl Move {
         let double_push =
             { piece_moving.name() == PieceName::Pawn && origin_sq.dist(dest_sq) == 2 };
         let move_type = {
-            if let Some(c) = castle {
-                c
-            } else if en_passant {
+            if en_passant {
                 EnPassant
+            } else if let Some(c) = castle {
+                c
             } else if let Some(promotion) = promotion {
                 match promotion {
                     PieceName::Knight => {
@@ -257,7 +285,7 @@ impl Move {
                 Normal
             }
         };
-        Move::new(origin_sq, dest_sq, move_type)
+        Self::new(origin_sq, dest_sq, move_type)
     }
 }
 

@@ -10,14 +10,19 @@ use crate::{
     chess_move::Direction,
 };
 
+// Objectively this should be an enum, but until rust allows traits to be used at comp time for
+// defining const values, defining such those values becomes a rather large PITA since we already
+// need to iterate through squares to define LUTs with a while loop (real forward thinking rust)
+// and converting from a number to an enum is exactly what the From trait is for. You know what
+// isn't available in const contexts? Traits ._.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub struct Square(pub u8);
 
 impl Square {
-    pub const NONE: Square = Square(65);
+    pub const NONE: Self = Self(65);
     /// Function checks whether a shift is valid before executing it
     pub const fn checked_shift(self, dir: Direction) -> Option<Self> {
-        if self.0 == Square::NONE.0 {
+        if self.0 == Self::NONE.0 {
             return None;
         }
         let s = self.bitboard().shift(dir);

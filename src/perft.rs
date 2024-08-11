@@ -4,27 +4,23 @@ use crate::board::Board;
 
 pub fn perft(board: &Board, depth: i32) -> usize {
     let start = Instant::now();
-    let count = non_bulk_perft::<true>(board, depth);
+    let count = perft_worker::<true>(board, depth);
     let elapsed = start.elapsed().as_secs_f64();
-    println!(
-        "{count} nodes in {elapsed} secs = {} nps",
-        (count as f64 / elapsed) as u64
-    );
+    println!("{count} nodes in {elapsed} secs = {} nps", (count as f64 / elapsed) as u64);
     count
 }
 
-fn non_bulk_perft<const ROOT: bool>(board: &Board, depth: i32) -> usize {
+fn perft_worker<const ROOT: bool>(board: &Board, depth: i32) -> usize {
     if depth == 1 {
         return board.legal_moves().len();
     }
     let mut total = 0;
-    let moves = board.legal_moves();
-    for m in moves {
+    for m in board.legal_moves() {
         let mut new_b = *board;
         new_b.make_move(m);
-        let count = non_bulk_perft::<false>(&new_b, depth - 1);
+        let count = perft_worker::<false>(&new_b, depth - 1);
         if ROOT {
-            println!("{}: {count}", m.to_san());
+            println!("{m}: {count}");
         }
         total += count;
     }

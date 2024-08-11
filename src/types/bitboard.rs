@@ -10,7 +10,7 @@ impl Bitboard {
     pub const EMPTY: Self = Self(0);
 
     pub fn is_empty(self) -> bool {
-        self == Bitboard::EMPTY
+        self == Self::EMPTY
     }
 
     /// Returns the index of the lowest bit of a bitboard, and modifies the bitboard to exclude
@@ -22,7 +22,7 @@ impl Bitboard {
     }
 
     pub const fn lsb(self) -> Square {
-        unsafe { std::mem::transmute(self.0.trailing_zeros() as u8) }
+        Square(self.0.trailing_zeros() as u8)
     }
 
     pub fn occupied(self, sq: Square) -> bool {

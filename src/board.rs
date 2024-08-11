@@ -23,6 +23,7 @@ use crate::{
 pub struct Board {
     bitboards: [Bitboard; NUM_PIECES],
     color_occupancies: [Bitboard; 2],
+    mailbox: [Piece; 64],
     /// Side to move
     pub stm: Color,
     pub castling_rights: u8,
@@ -38,11 +39,11 @@ impl Default for Board {
 }
 
 impl Board {
-    pub fn piece_bbs(&self) -> [Bitboard; 6] {
+    pub const fn piece_bbs(&self) -> [Bitboard; 6] {
         self.bitboards
     }
 
-    pub fn color_bbs(&self) -> [Bitboard; 2] {
+    pub const fn color_bbs(&self) -> [Bitboard; 2] {
         self.color_occupancies
     }
 
@@ -63,22 +64,20 @@ impl Board {
     }
 
     pub fn piece_at(&self, sq: Square) -> Piece {
-        let piece_name = self.bitboards.iter().position(|bb| bb.contains(sq));
-        let Some(piece_name) = piece_name else {
-            return Piece::None;
-        };
-        let color = self
-            .color_occupancies
-            .iter()
-            .position(|bb| bb.contains(sq))
-            .unwrap();
-        Piece::new(
-            PieceName::from_u32(piece_name as u32),
-            Color::from_u32(color as u32),
-        )
+        self.mailbox[sq]
+        // let piece_name = self.bitboards.iter().position(|bb| bb.contains(sq));
+        // let Some(piece_name) = piece_name else {
+        //     return Piece::None;
+        // };
+        // let color = self
+        //     .color_occupancies
+        //     .iter()
+        //     .position(|bb| bb.contains(sq))
+        //     .unwrap();
+        // Piece::new((piece_name).into(), (color).into())
     }
 
-    fn is_material_draw(&self) -> bool {
+    pub fn is_material_draw(&self) -> bool {
         // If we have any pawns, checkmate is still possible
         if !self.piece(PieceName::Pawn).is_empty() {
             return false;
@@ -106,22 +105,6 @@ impl Board {
         }
 
         false
-    }
-
-    pub fn hash_after(&self, m: Option<Move>) -> u64 {
-        let mut hash = self.zobrist_hash ^ ZOBRIST.turn;
-
-        // Return hash right away if the move was a null move
-        let Some(m) = m else { return hash };
-
-        hash ^= ZOBRIST.piece[m.piece_moving(self)][m.from()]
-            ^ ZOBRIST.piece[m.piece_moving(self)][m.to()];
-
-        if self.piece_at(m.to()) != Piece::None {
-            hash ^= ZOBRIST.piece[self.piece_at(m.to())][m.to()];
-        }
-
-        hash
     }
 
     /// Returns the type of piece captured by a move, if any
@@ -159,6 +142,7 @@ impl Board {
     }
 
     pub fn place_piece(&mut self, piece: Piece, sq: Square) {
+        self.mailbox[sq] = piece;
         self.bitboards[piece.name()] ^= sq.bitboard();
         self.color_occupancies[piece.color()] ^= sq.bitboard();
         self.zobrist_hash ^= ZOBRIST.piece[piece][sq];
@@ -166,6 +150,7 @@ impl Board {
 
     fn remove_piece(&mut self, sq: Square) {
         let piece = self.piece_at(sq);
+        self.mailbox[sq] = Piece::None;
         if piece != Piece::None {
             self.bitboards[piece.name()] ^= sq.bitboard();
             self.color_occupancies[piece.color()] ^= sq.bitboard();
@@ -198,6 +183,10 @@ impl Board {
         !self
             .attackers_for_side(attacker, sq, self.occupancies())
             .is_empty()
+    }
+
+    pub fn in_check(&self) -> bool {
+        self.square_under_attack(!self.stm, self.king_square(self.stm))
     }
 
     pub(super) fn pinned_and_checkers(&self) -> (Bitboard, Bitboard) {
@@ -358,10 +347,11 @@ impl Board {
         }
     }
 
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self {
             bitboards: [Bitboard::EMPTY; 6],
             color_occupancies: [Bitboard::EMPTY; 2],
+            mailbox: [Piece::None; 64],
             castling_rights: 0,
             stm: Color::White,
             en_passant_square: Square::NONE,
@@ -382,11 +372,8 @@ impl fmt::Display for Board {
             for col in 0..8 {
                 let idx = row * 8 + col;
 
-                // Append piece characters for white pieces
                 let piece = self.piece_at(Square(idx));
-                let char = piece.char();
-
-                str += &char;
+                str += &piece.char();
 
                 str.push_str(" | ");
             }

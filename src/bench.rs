@@ -1,5 +1,27 @@
+use crate::arena::Arena;
+use crate::{historized_board::HistorizedBoard, search::SearchType};
+use std::{sync::atomic::AtomicBool, time::Instant};
+
 pub fn bench() {
-    todo!()
+    let start = Instant::now();
+
+    let halt = AtomicBool::new(false);
+
+    let search_type = SearchType::Depth(4, 1_048_576);
+    let mut arena = Arena::default();
+
+    let mut nodes = 0;
+
+    for fen in BENCH_POSITIONS {
+        let board: HistorizedBoard = fen.into();
+        arena.start_search(&board, &halt, search_type, false);
+        nodes += arena.nodes();
+        arena = Arena::default();
+    }
+
+    let time = start.elapsed().as_secs_f64();
+    println!("{time:.2} seconds");
+    println!("{} nodes {} nps", nodes, (nodes as f64 / time) as u64);
 }
 
 const BENCH_POSITIONS: [&str; 50] = [

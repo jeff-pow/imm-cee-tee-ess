@@ -1,2 +1,11 @@
 /target
+*.txt
+*.pgn
+*.out
+new
+old
+main
+mcts
+dev
+*.net
 .idea/
