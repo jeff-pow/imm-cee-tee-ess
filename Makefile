@@ -1,5 +1,5 @@
-EXE = mcts
-LXE = mcts
+EXE = imm-cee-tee-ess
+LXE = imm-cee-tee-ess
 
 ifeq ($(OS),Windows_NT)
 	NAME := $(EXE).exe
