@@ -1,15 +1,12 @@
 use crate::{
     board::Board,
-    chess_move::{Direction, Move},
+    chess_move::Move,
     eval::HIDDEN_SIZE,
-    types::{
-        bitboard::Bitboard,
-        pieces::{Color, Piece, PieceName},
-    },
+    types::pieces::{Color, Piece},
 };
 
 use super::{
-    network::{flatten, Network, BUCKETS, NORMALIZATION_FACTOR, NUM_BUCKETS, QAB, SCALE},
+    network::{flatten, Network, NORMALIZATION_FACTOR, QAB, SCALE},
     Align64, Block, NET,
 };
 use arrayvec::ArrayVec;
@@ -57,84 +54,6 @@ impl Accumulator {
         let raw = self.raw_evaluate(board.stm);
         let eval = raw * board.mat_scale() / 1024;
         eval * (200 - board.half_moves as i32) / 200
-    }
-
-    fn add_sub(&mut self, old: &Accumulator, a1: usize, s1: usize, side: Color) {
-        let weights = &NET.feature_weights;
-        self[side].iter_mut().zip(&weights[a1].0).zip(&weights[s1].0).zip(old[side].iter()).for_each(
-            |(((i, &a), &s), &o)| {
-                *i = o + a - s;
-            },
-        );
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn add_sub_sub(&mut self, old: &Accumulator, a1: usize, s1: usize, s2: usize, side: Color) {
-        let weights = &NET.feature_weights;
-        self[side]
-            .iter_mut()
-            .zip(&weights[a1].0)
-            .zip(&weights[s1].0)
-            .zip(&weights[s2].0)
-            .zip(old[side].iter())
-            .for_each(|((((i, &a), &s1), &s2), &o)| {
-                *i = o + a - s1 - s2;
-            });
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn add_add_sub_sub(&mut self, old: &Accumulator, a1: usize, a2: usize, s1: usize, s2: usize, side: Color) {
-        let weights = &NET.feature_weights;
-        self[side]
-            .iter_mut()
-            .zip(&weights[a1].0)
-            .zip(&weights[a2].0)
-            .zip(&weights[s1].0)
-            .zip(&weights[s2].0)
-            .zip(old[side].iter())
-            .for_each(|(((((i, &a1), &a2), &s1), &s2), &o)| {
-                *i = o + a1 + a2 - s1 - s2;
-            });
-    }
-
-    pub(crate) fn lazy_update(&mut self, old: &Accumulator, side: Color, board: &Board) {
-        let m = self.m.unwrap();
-        let from = if side == Color::Black { m.from().flip_vertical() } else { m.from() };
-        let to = if side == Color::Black { m.to().flip_vertical() } else { m.to() };
-        assert!(
-            m.piece_moving(board).name() != PieceName::King
-                || m.piece_moving(board).color() != side
-                || BUCKETS[from] == BUCKETS[to]
-        );
-        let piece_moving = m.promotion().map_or_else(|| m.piece_moving(board), |promo| Piece::new(promo, board.stm));
-        let king = board.king_square(side);
-        let a1 = Network::feature_idx(piece_moving, m.to(), king, side);
-        let s1 = Network::feature_idx(m.piece_moving(board), m.from(), king, side);
-        if m.is_castle() {
-            let rook = Piece::new(PieceName::Rook, m.piece_moving(board).color());
-            let a2 = Network::feature_idx(rook, m.castle_type().rook_to(), king, side);
-            let s2 = Network::feature_idx(rook, m.castle_type().rook_from(), king, side);
-
-            self.add_add_sub_sub(old, a1, a2, s1, s2, side);
-        } else if self.capture != Piece::None || m.is_en_passant() {
-            let cap_square = if m.is_en_passant() {
-                match m.piece_moving(board).color() {
-                    Color::White => m.to().shift(Direction::South),
-                    Color::Black => m.to().shift(Direction::North),
-                }
-            } else {
-                m.to()
-            };
-            let capture = if m.is_en_passant() {
-                Piece::new(PieceName::Pawn, !m.piece_moving(board).color())
-            } else {
-                self.capture
-            };
-            let s2 = Network::feature_idx(capture, cap_square, king, side);
-            self.add_sub_sub(old, a1, s1, s2, side);
-        } else {
-            self.add_sub(old, a1, s1, side);
-        }
     }
 }
 
@@ -189,53 +108,5 @@ impl Board {
             update(&mut acc.vals[view], &vec, &[]);
         }
         acc
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-struct TableEntry {
-    acc: Align64<Block>,
-    pieces: [Bitboard; 6],
-    color: [Bitboard; 2],
-}
-
-impl Default for TableEntry {
-    fn default() -> Self {
-        Self { acc: NET.feature_bias, pieces: [Bitboard::EMPTY; 6], color: [Bitboard::EMPTY; 2] }
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct AccumulatorCache {
-    entries: Box<[[TableEntry; 2]; NUM_BUCKETS * 2]>,
-}
-
-impl AccumulatorCache {
-    pub fn update_acc(&mut self, board: &Board, acc: &mut Accumulator, view: Color) {
-        let mut adds = ArrayVec::<_, 32>::new();
-        let mut subs = ArrayVec::<_, 32>::new();
-        let king = board.king_square(view);
-        let entry = &mut self.entries[Network::bucket(view, king)][view];
-
-        for piece in Piece::iter() {
-            let prev = entry.pieces[piece.name()] & entry.color[piece.color()];
-            let curr = board.piece_color(piece.color(), piece.name());
-
-            let added = curr & !prev;
-            let removed = prev & !curr;
-
-            for sq in added {
-                adds.push(Network::feature_idx(piece, sq, king, view) as u16);
-            }
-            for sq in removed {
-                subs.push(Network::feature_idx(piece, sq, king, view) as u16);
-            }
-        }
-
-        entry.pieces = board.piece_bbs();
-        entry.color = board.color_bbs();
-
-        update(&mut entry.acc, &adds, &subs);
-        acc.vals[view] = entry.acc;
     }
 }

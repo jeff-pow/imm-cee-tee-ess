@@ -73,10 +73,6 @@ impl Square {
         self.0 & 0b111
     }
 
-    pub const fn idx(self) -> usize {
-        self.0 as usize
-    }
-
     pub const fn rank_bitboard(self) -> Bitboard {
         let x = self.rank();
         RANKS[x as usize]
@@ -180,6 +176,19 @@ impl Square {
     pub const F8: Self = Self(61);
     pub const G8: Self = Self(62);
     pub const H8: Self = Self(63);
+}
+
+impl From<usize> for Square {
+    fn from(value: usize) -> Self {
+        assert!((0..64).contains(&value));
+        Self(value as u8)
+    }
+}
+
+impl From<Square> for usize {
+    fn from(value: Square) -> Self {
+        value.0 as usize
+    }
 }
 
 #[rustfmt::skip]

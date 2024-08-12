@@ -51,33 +51,26 @@ impl Network {
         match view {
             Color::White => {
                 BUCKETS[king] * INPUT_SIZE
-                    // + piece.color().into() * COLOR_OFFSET
-                + usize::from(piece.color()) * COLOR_OFFSET
-                    // + piece.name().into() * PIECE_OFFSET
-                + usize::from(piece.name()) * PIECE_OFFSET
-                    + sq.idx()
+                    + usize::from(piece.color()) * COLOR_OFFSET
+                    + usize::from(piece.name()) * PIECE_OFFSET
+                    + usize::from(sq)
             }
             Color::Black => {
                 BUCKETS[king.flip_vertical()] * INPUT_SIZE
                     + usize::from(!piece.color()) * COLOR_OFFSET
                     + usize::from(piece.name()) * PIECE_OFFSET
-                    + sq.flip_vertical().idx()
+                    + usize::from(sq.flip_vertical())
             }
         }
     }
-
-    pub fn bucket(view: Color, mut sq: Square) -> usize {
-        if view == Color::Black {
-            sq = sq.flip_vertical();
-        }
-        BUCKETS[sq]
-    }
 }
 
+#[cfg(not(target_feature = "avx2"))]
 fn screlu(i: i16) -> i32 {
     crelu(i) * crelu(i)
 }
 
+#[cfg(not(target_feature = "avx2"))]
 fn crelu(i: i16) -> i32 {
     i32::from(i.clamp(RELU_MIN, RELU_MAX))
 }
@@ -90,11 +83,7 @@ pub(super) fn flatten(acc: &Block, weights: &Block) -> i32 {
     }
     #[cfg(not(target_feature = "avx2"))]
     {
-        let mut sum = 0;
-        for (&i, &w) in acc.iter().zip(weights) {
-            sum += screlu(i) * i32::from(w);
-        }
-        sum
+        acc.iter().zip(weights).map(|(&i, &w)| screlu(i) * i32::from(w)).sum::<i32>()
     }
 }
 
