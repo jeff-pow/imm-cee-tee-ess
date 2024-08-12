@@ -2,9 +2,7 @@ use core::fmt;
 
 use super::fen::STARTING_FEN;
 use crate::{
-    attack_boards::{
-        king_attacks, knight_attacks, pawn_attacks, pawn_set_attacks, BETWEEN_SQUARES,
-    },
+    attack_boards::{king_attacks, knight_attacks, pawn_attacks, pawn_set_attacks, BETWEEN_SQUARES},
     chess_move::{
         Castle,
         Direction::{North, South},
@@ -97,9 +95,7 @@ impl Board {
                 return true;
             }
             // If there is one bishop per side, checkmate is impossible
-            if self.color(Color::White).count_bits() == 2
-                && self.piece(PieceName::Bishop).count_bits() == 2
-            {
+            if self.color(Color::White).count_bits() == 2 && self.piece(PieceName::Bishop).count_bits() == 2 {
                 return true;
             }
         }
@@ -121,10 +117,8 @@ impl Board {
     }
 
     pub fn has_non_pawns(&self, side: Color) -> bool {
-        !(self.occupancies()
-            ^ self.piece_color(side, PieceName::King)
-            ^ self.piece_color(side, PieceName::Pawn))
-        .is_empty()
+        !(self.occupancies() ^ self.piece_color(side, PieceName::King) ^ self.piece_color(side, PieceName::Pawn))
+            .is_empty()
     }
 
     pub fn can_en_passant(&self) -> bool {
@@ -163,8 +157,7 @@ impl Board {
     }
 
     pub fn attackers(&self, sq: Square, occupancy: Bitboard) -> Bitboard {
-        self.attackers_for_side(Color::White, sq, occupancy)
-            | self.attackers_for_side(Color::Black, sq, occupancy)
+        self.attackers_for_side(Color::White, sq, occupancy) | self.attackers_for_side(Color::Black, sq, occupancy)
     }
 
     pub fn attackers_for_side(&self, attacker: Color, sq: Square, occupancy: Bitboard) -> Bitboard {
@@ -175,14 +168,11 @@ impl Board {
         let bishop_attacks = bishop_attacks(sq, occupancy) & bishops;
         let rook_attacks = rook_attacks(sq, occupancy) & rooks;
         let king_attacks = king_attacks(sq) & self.piece(PieceName::King);
-        (pawn_attacks | knight_attacks | bishop_attacks | rook_attacks | king_attacks)
-            & self.color(attacker)
+        (pawn_attacks | knight_attacks | bishop_attacks | rook_attacks | king_attacks) & self.color(attacker)
     }
 
     pub fn square_under_attack(&self, attacker: Color, sq: Square) -> bool {
-        !self
-            .attackers_for_side(attacker, sq, self.occupancies())
-            .is_empty()
+        !self.attackers_for_side(attacker, sq, self.occupancies()).is_empty()
     }
 
     pub fn in_check(&self) -> bool {
@@ -228,21 +218,13 @@ impl Board {
 
         threats |= pawn_set_attacks(self.piece_color(attacker, PieceName::Pawn), attacker);
 
-        let rooks =
-            (self.piece(PieceName::Rook) | self.piece(PieceName::Queen)) & self.color(attacker);
-        rooks
-            .into_iter()
-            .for_each(|sq| threats |= rook_attacks(sq, occ));
+        let rooks = (self.piece(PieceName::Rook) | self.piece(PieceName::Queen)) & self.color(attacker);
+        rooks.into_iter().for_each(|sq| threats |= rook_attacks(sq, occ));
 
-        let bishops =
-            (self.piece(PieceName::Bishop) | self.piece(PieceName::Queen)) & self.color(attacker);
-        bishops
-            .into_iter()
-            .for_each(|sq| threats |= bishop_attacks(sq, occ));
+        let bishops = (self.piece(PieceName::Bishop) | self.piece(PieceName::Queen)) & self.color(attacker);
+        bishops.into_iter().for_each(|sq| threats |= bishop_attacks(sq, occ));
 
-        self.piece_color(attacker, PieceName::Knight)
-            .into_iter()
-            .for_each(|sq| threats |= knight_attacks(sq));
+        self.piece_color(attacker, PieceName::Knight).into_iter().for_each(|sq| threats |= knight_attacks(sq));
 
         threats |= king_attacks(self.king_square(attacker));
 
@@ -435,9 +417,7 @@ mod board_tests {
     fn test_place_piece() {
         let mut board = Board::empty();
         board.place_piece(Piece::WhiteRook, Square(0));
-        assert!(board
-            .piece_color(Color::White, PieceName::Rook)
-            .occupied(Square(0)));
+        assert!(board.piece_color(Color::White, PieceName::Rook).occupied(Square(0)));
     }
 
     #[test]
@@ -446,9 +426,7 @@ mod board_tests {
 
         let mut c = board;
         c.remove_piece(Square(0));
-        assert!(c
-            .piece_color(Color::White, PieceName::Rook)
-            .empty(Square(0)));
+        assert!(c.piece_color(Color::White, PieceName::Rook).empty(Square(0)));
         assert!(c.occupancies().empty(Square(0)));
         assert_ne!(c, board);
 

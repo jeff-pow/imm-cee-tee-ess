@@ -30,12 +30,7 @@ pub const ZOBRIST: Zobrist = {
         prev = rand_u64(prev);
         prev
     });
-    Zobrist {
-        piece: piece_square_hashes,
-        turn: turn_hash,
-        castling,
-        en_passant,
-    }
+    Zobrist { piece: piece_square_hashes, turn: turn_hash, castling, en_passant }
 };
 
 impl Board {

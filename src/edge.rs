@@ -13,12 +13,7 @@ pub struct Edge {
 
 impl Edge {
     pub const fn new(m: Move, child_ptr: Option<ArenaIndex>) -> Self {
-        Self {
-            m,
-            child_ptr,
-            visits: 0,
-            total_score: 0.,
-        }
+        Self { m, child_ptr, visits: 0, total_score: 0. }
     }
 
     pub fn q(&self) -> f32 {

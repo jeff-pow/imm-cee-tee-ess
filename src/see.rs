@@ -14,11 +14,7 @@ impl Board {
             return PieceName::Pawn.value();
         }
         let capture = self.piece_at(m.to());
-        let mut score = if capture == Piece::None {
-            0
-        } else {
-            capture.value()
-        };
+        let mut score = if capture == Piece::None { 0 } else { capture.value() };
 
         if let Some(p) = m.promotion() {
             score += p.value() - PieceName::Pawn.value();
@@ -26,12 +22,7 @@ impl Board {
         score
     }
 
-    fn next_attacker(
-        &self,
-        occupied: &mut Bitboard,
-        attackers: Bitboard,
-        side: Color,
-    ) -> PieceName {
+    fn next_attacker(&self, occupied: &mut Bitboard, attackers: Bitboard, side: Color) -> PieceName {
         for p in PieceName::iter() {
             let bb = attackers & self.piece_color(side, p);
             if !(attackers & self.piece_color(side, p)).is_empty() {
@@ -56,9 +47,7 @@ impl Board {
 
         let piece_moving = self.piece_at(from);
         assert!(piece_moving != Piece::None);
-        let next = m
-            .promotion()
-            .map_or(piece_moving, |promo| Piece::new(promo, self.stm));
+        let next = m.promotion().map_or(piece_moving, |promo| Piece::new(promo, self.stm));
 
         score -= next.value();
 
@@ -87,10 +76,7 @@ impl Board {
 
             let next_piece = self.next_attacker(&mut occupied, my_attackers, to_move);
 
-            if matches!(
-                next_piece,
-                PieceName::Pawn | PieceName::Bishop | PieceName::Queen
-            ) {
+            if matches!(next_piece, PieceName::Pawn | PieceName::Bishop | PieceName::Queen) {
                 attackers |= bishop_attacks(to, occupied) & bishops;
             }
             if matches!(next_piece, PieceName::Rook | PieceName::Queen) {
@@ -119,16 +105,13 @@ impl Board {
 /// Failing to do this will make these tests fail.
 #[allow(dead_code)]
 pub fn see_test() {
-    SEE_POSITIONS
-        .iter()
-        .enumerate()
-        .for_each(|(test_num, str)| {
-            let mut iter = str.split('|');
-            let board = Board::from_fen(iter.next().unwrap());
-            let m = Move::from_san(iter.next().unwrap().trim(), &board);
-            let threshold = iter.next().unwrap().trim().parse::<i32>().unwrap();
-            assert!(board.see(m, threshold), "{test_num} failed");
-        });
+    SEE_POSITIONS.iter().enumerate().for_each(|(test_num, str)| {
+        let mut iter = str.split('|');
+        let board = Board::from_fen(iter.next().unwrap());
+        let m = Move::from_san(iter.next().unwrap().trim(), &board);
+        let threshold = iter.next().unwrap().trim().parse::<i32>().unwrap();
+        assert!(board.see(m, threshold), "{test_num} failed");
+    });
     println!("All SEE tests passed");
 }
 
