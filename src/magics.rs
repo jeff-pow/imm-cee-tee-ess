@@ -212,7 +212,7 @@ const fn sliding_attack(deltas: [Direction; 4], square: Square, occupied: Bitboa
     Bitboard(attack)
 }
 
-#[allow(dead_code)]
+#[expect(unused)]
 /// Function generates magic numbers when they are not known.
 pub fn gen_magics() {
     let mut rng = Rng::default();

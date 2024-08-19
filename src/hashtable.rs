@@ -17,7 +17,7 @@ impl HashTable {
         Self { data }
     }
 
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub fn probe(&self, hash: u64) -> Option<i32> {
         let idx = index(hash, self.data.len());
         let key = hash as u16;
@@ -28,7 +28,7 @@ impl HashTable {
         None
     }
 
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub fn insert(&mut self, hash: u64, ptr: i32) {
         let idx = index(hash, self.data.len());
         let key = hash as u16;

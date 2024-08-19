@@ -2,7 +2,7 @@ use crate::edge::Edge;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub enum GameState {
-    #[allow(dead_code)]
+    #[expect(unused)]
     Won,
     Draw,
     Lost,
