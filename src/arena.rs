@@ -29,11 +29,14 @@ pub struct Arena {
 }
 
 impl Arena {
-    pub fn new(mb: usize, report: bool) -> Self {
-        let cap = mb * 15 * 1024 * 1024 / size_of::<Node>() / 16;
-        assert!(cap < u32::MAX as usize, "Indexing scheme does not support tree capacities >= u32::MAX");
+    pub fn new(mb: f32, report: bool) -> Self {
+        let cap = (mb * 15. / 16. * 1024. * 1024. / size_of::<Node>() as f32) as usize;
+        assert!(
+            (0..u32::MAX as usize).contains(&cap),
+            "Indexing scheme does not support tree capacities >= u32::MAX, and tree must have at least one node"
+        );
         let arena = vec![Node::default(); cap];
-        let hash_table = HashTable::new(mb / 16);
+        let hash_table = HashTable::new(mb / 16.);
         if report {
             println!(
                 "{mb} MB arena created with {} entries and hash table with {} entries.",
@@ -70,16 +73,20 @@ impl Arena {
         }
     }
 
-    pub fn delete(&mut self, idx: ArenaIndex) {
+    fn delete(&mut self, idx: ArenaIndex) {
         let mut stack = vec![idx];
 
         while let Some(current_idx) = stack.pop() {
             if self[current_idx].edges().is_empty() {
                 self.free_list.push(current_idx);
             } else {
-                stack.extend(self[current_idx].edges().iter().filter_map(|child| child.child()));
+                stack.extend(self[current_idx].edges().iter().filter_map(Edge::child));
             }
         }
+    }
+
+    pub const fn nodes(&self) -> u64 {
+        self.nodes
     }
 
     pub const fn capacity(&self) -> usize {
@@ -133,13 +140,15 @@ impl Arena {
                 //     self.hash_table.insert(board.hash(), child_ptr);
                 // }
                 let child_ptr = self.insert(board);
-                self[ptr].edges_mut()[edge_idx].set_child(child_ptr);
+                assert!(!self.free_list.contains(&ptr));
+                assert!(!self.free_list.contains(&child_ptr));
+                self[ptr].edges_mut()[edge_idx].set_child(Some(child_ptr));
                 child_ptr
             });
 
             let u = self.playout(child_ptr, board, self[ptr].edges()[edge_idx].visits());
 
-            // Backpropogate
+            // Backpropagation
             self[ptr].edges_mut()[edge_idx].update_stats(u);
 
             u
@@ -187,14 +196,14 @@ impl Arena {
     pub fn print_uci(&self, nodes: u64, search_start: Instant, max_depth: u64, avg_depth: u64, root: ArenaIndex) {
         let q = self.final_move_selection(root).unwrap().q();
         print!(
-            "info time {} depth {} seldepth {} score cp {} nodes {} nps {} hashfull {} pv ",
+            "info time {} depth {} seldepth {} score cp {} nodes {} nps {} hashfull {:.0} pv ",
             search_start.elapsed().as_millis(),
             avg_depth,
             max_depth,
             (-SCALE * ((1. - q) / q).ln()) as i32,
             nodes,
             (nodes as f64 / search_start.elapsed().as_secs_f64()) as i64,
-            (self.capacity() - self.empty_slots()) / self.capacity() * 1000,
+            (self.capacity() as f64 - self.empty_slots() as f64) / self.capacity() as f64 * 1000.,
         );
 
         let mut ptr = Some(root);
@@ -212,8 +221,6 @@ impl Arena {
         search_type: SearchType,
         report: bool,
     ) -> Move {
-        *self = Self::default();
-
         let root = self.insert(board);
         self.root_visits = 0;
         self.root_total_score = 0.;
@@ -225,10 +232,27 @@ impl Arena {
         let mut running_avg_depth = 0;
 
         loop {
-            // Hacky solution to deal with running out of memory. Just quit the search :/
-            if usize::from(self.empty) as f32 >= 0.97 * self.node_list.len() as f32 {
-                break;
+            if self.empty_slots() == 0 {
+                let mut min = None;
+                let mut min_q = f32::INFINITY;
+                let mut min_idx = usize::MAX;
+                for (idx, child) in self[root]
+                    .edges()
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, child)| child.child().is_some() && child.visits() > 0)
+                {
+                    if child.q() < min_q {
+                        min_q = child.q();
+                        min = child.child();
+                        min_idx = idx;
+                    }
+                }
+                self.delete(min.unwrap());
+                let m = self[root].edges()[min_idx].m();
+                self[root].edges_mut()[min_idx] = Edge::new(m, None);
             }
+
             self.depth = 0;
 
             let mut b = board.clone();
@@ -262,21 +286,17 @@ impl Arena {
 
         self.final_move_selection(root).unwrap().m()
     }
-
-    pub const fn nodes(&self) -> u64 {
-        self.nodes
-    }
 }
 
 impl Default for Arena {
     fn default() -> Self {
-        Self::new(32, false)
+        Self::new(32., true)
     }
 }
 
 const _: () = assert!(size_of::<ArenaIndex>() == size_of::<Option<ArenaIndex>>());
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ArenaIndex(NonZeroU32);
 
 impl Index<ArenaIndex> for Arena {
@@ -304,7 +324,7 @@ impl From<usize> for ArenaIndex {
 
 impl From<ArenaIndex> for usize {
     fn from(value: ArenaIndex) -> Self {
-        (value.0.get() - 1) as usize
+        (value.0.get() - 1) as Self
     }
 }
 
@@ -385,7 +405,7 @@ mod arena_tests {
 
     #[test]
     fn insert_into_empty_arena() {
-        let mut arena = Arena::new(32, false);
+        let mut arena = Arena::new(32., false);
         let board = HistorizedBoard::default();
 
         let idx = arena.insert(&board);
@@ -395,7 +415,7 @@ mod arena_tests {
 
     #[test]
     fn insert_incrementing_empty_pointer() {
-        let mut arena = Arena::new(32, false);
+        let mut arena = Arena::new(32., false);
         let board = HistorizedBoard::default();
 
         let idx1 = arena.insert(&board);
@@ -406,7 +426,7 @@ mod arena_tests {
 
     #[test]
     fn insert_multiple_times() {
-        let mut arena = Arena::new(32, false);
+        let mut arena = Arena::new(32., false);
         let board = HistorizedBoard::default();
 
         for i in 0..10 {
@@ -417,7 +437,7 @@ mod arena_tests {
 
     #[test]
     fn test_delete() {
-        let mut arena = Arena::new(1, false);
+        let mut arena = Arena::new(1., false);
         let board = HistorizedBoard::default();
 
         for _ in 0..arena.capacity() {
@@ -441,7 +461,7 @@ mod arena_tests {
 
     #[test]
     fn empty_slots() {
-        let mut arena = Arena::new(1, false);
+        let mut arena = Arena::new(1., false);
         assert_eq!(arena.empty_slots(), arena.node_list.len());
 
         arena.insert(&HistorizedBoard::default());

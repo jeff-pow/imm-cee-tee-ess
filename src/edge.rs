@@ -1,7 +1,4 @@
-use crate::{
-    arena::{ArenaIndex, FPU},
-    chess_move::Move,
-};
+use crate::{arena::ArenaIndex, chess_move::Move};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Edge {
@@ -17,11 +14,8 @@ impl Edge {
     }
 
     pub fn q(&self) -> f32 {
-        if self.visits == 0 {
-            FPU
-        } else {
-            self.total_score / self.visits as f32
-        }
+        assert_ne!(0, self.visits, "User must specify value they want if node hasn't been visited before.");
+        self.total_score / self.visits as f32
     }
 
     pub fn update_stats(&mut self, u: f32) {
@@ -41,7 +35,7 @@ impl Edge {
         self.child_ptr
     }
 
-    pub fn set_child(&mut self, child_ptr: ArenaIndex) {
-        self.child_ptr = Some(child_ptr);
+    pub fn set_child(&mut self, child_ptr: Option<ArenaIndex>) {
+        self.child_ptr = child_ptr;
     }
 }

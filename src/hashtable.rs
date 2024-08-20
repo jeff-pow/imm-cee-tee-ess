@@ -11,9 +11,10 @@ pub struct HashTable {
 }
 
 impl HashTable {
-    pub fn new(mb: usize) -> Self {
-        let num = mb * 1024 * 1024 / size_of::<TableEntry>();
-        let data = vec![TableEntry::default(); num].into_boxed_slice();
+    pub fn new(mb: f32) -> Self {
+        let cap = (mb * 1024. * 1024. / size_of::<TableEntry>() as f32) as usize;
+        assert!(cap > 0, "Hash table must have at least 1 element");
+        let data = vec![TableEntry::default(); cap].into_boxed_slice();
         Self { data }
     }
 
@@ -35,7 +36,7 @@ impl HashTable {
         self.data[idx] = TableEntry { key, ptr }
     }
 
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.data.len()
     }
 }

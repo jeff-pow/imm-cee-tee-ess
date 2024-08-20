@@ -193,13 +193,13 @@ impl From<usize> for PieceName {
 impl From<PieceName> for usize {
     fn from(value: PieceName) -> Self {
         match value {
-            PieceName::Pawn => PieceName::Pawn as usize,
-            PieceName::Knight => PieceName::Knight as usize,
-            PieceName::Bishop => PieceName::Bishop as usize,
-            PieceName::Rook => PieceName::Rook as usize,
-            PieceName::Queen => PieceName::Queen as usize,
-            PieceName::King => PieceName::King as usize,
-            PieceName::None => PieceName::None as usize,
+            PieceName::Pawn => PieceName::Pawn as Self,
+            PieceName::Knight => PieceName::Knight as Self,
+            PieceName::Bishop => PieceName::Bishop as Self,
+            PieceName::Rook => PieceName::Rook as Self,
+            PieceName::Queen => PieceName::Queen as Self,
+            PieceName::King => PieceName::King as Self,
+            PieceName::None => PieceName::None as Self,
         }
     }
 }
@@ -217,8 +217,8 @@ impl From<usize> for Color {
 impl From<Color> for usize {
     fn from(value: Color) -> Self {
         match value {
-            Color::White => Color::White as usize,
-            Color::Black => Color::Black as usize,
+            Color::White => Color::White as Self,
+            Color::Black => Color::Black as Self,
         }
     }
 }
