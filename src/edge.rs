@@ -38,4 +38,10 @@ impl Edge {
     pub fn set_child(&mut self, child_ptr: Option<ArenaIndex>) {
         self.child_ptr = child_ptr;
     }
+
+    pub fn reset(&mut self) {
+        self.visits = 0;
+        self.child_ptr = None;
+        self.total_score = 0.;
+    }
 }

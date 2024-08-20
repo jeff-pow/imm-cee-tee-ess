@@ -221,6 +221,8 @@ impl Arena {
         search_type: SearchType,
         report: bool,
     ) -> Move {
+        *self = Self::default();
+
         let root = self.insert(board);
         self.root_visits = 0;
         self.root_total_score = 0.;
@@ -249,8 +251,7 @@ impl Arena {
                     }
                 }
                 self.delete(min.unwrap());
-                let m = self[root].edges()[min_idx].m();
-                self[root].edges_mut()[min_idx] = Edge::new(m, None);
+                self[root].edges_mut()[min_idx].reset();
             }
 
             self.depth = 0;
