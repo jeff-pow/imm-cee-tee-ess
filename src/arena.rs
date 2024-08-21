@@ -235,23 +235,31 @@ impl Arena {
 
         loop {
             if self.empty_slots() == 0 {
-                let mut min = None;
-                let mut min_q = f32::INFINITY;
-                let mut min_idx = usize::MAX;
-                for (idx, child) in self[root]
-                    .edges()
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, child)| child.child().is_some() && child.visits() > 0)
-                {
-                    if child.q() < min_q {
-                        min_q = child.q();
-                        min = child.child();
-                        min_idx = idx;
+                let mut ptr = root;
+                let mut parent_visits = self.root_visits;
+                loop {
+                    let mut min_visits = i32::MAX;
+                    let mut min_idx = usize::MAX;
+                    for (idx, child) in
+                        self[ptr].edges().iter().enumerate().filter(|(_, child)| child.child().is_some())
+                    {
+                        if child.visits() < min_visits {
+                            min_visits = child.visits();
+                            min_idx = idx;
+                        }
+                    }
+                    self.delete(self[ptr].edges()[min_idx].child().unwrap());
+                    self[ptr].edges_mut()[min_idx].reset();
+
+                    let edge_idx = self.select_action(ptr, parent_visits);
+
+                    parent_visits = self[ptr].edges()[edge_idx].visits();
+                    if let Some(child) = self[ptr].edges()[edge_idx].child() {
+                        ptr = child;
+                    } else {
+                        break;
                     }
                 }
-                self.delete(min.unwrap());
-                self[root].edges_mut()[min_idx].reset();
             }
 
             self.depth = 0;
