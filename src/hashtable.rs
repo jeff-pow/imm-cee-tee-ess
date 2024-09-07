@@ -29,6 +29,12 @@ impl HashTable {
         None
     }
 
+    pub fn clear(&mut self) {
+        for entry in &mut self.data {
+            *entry = TableEntry::default();
+        }
+    }
+
     #[expect(unused)]
     pub fn insert(&mut self, hash: u64, ptr: i32) {
         let idx = index(hash, self.data.len());

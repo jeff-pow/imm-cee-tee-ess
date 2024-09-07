@@ -10,11 +10,19 @@ pub struct Edge {
 
 impl Edge {
     pub const fn new(m: Move, child_ptr: Option<ArenaIndex>) -> Self {
-        Self { m, child_ptr, visits: 0, total_score: 0. }
+        Self {
+            m,
+            child_ptr,
+            visits: 0,
+            total_score: 0.,
+        }
     }
 
     pub fn q(&self) -> f32 {
-        assert_ne!(0, self.visits, "User must specify value they want if node hasn't been visited before.");
+        assert_ne!(
+            0, self.visits,
+            "User must specify value they want if node hasn't been visited before."
+        );
         self.total_score / self.visits as f32
     }
 
@@ -37,11 +45,5 @@ impl Edge {
 
     pub fn set_child(&mut self, child_ptr: Option<ArenaIndex>) {
         self.child_ptr = child_ptr;
-    }
-
-    pub fn reset(&mut self) {
-        self.visits = 0;
-        self.child_ptr = None;
-        self.total_score = 0.;
     }
 }

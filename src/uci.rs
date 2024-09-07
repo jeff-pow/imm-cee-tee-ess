@@ -9,7 +9,7 @@ use crate::fen::{parse_fen_from_buffer, STARTING_FEN};
 use crate::game_time::Clock;
 use crate::historized_board::HistorizedBoard;
 use crate::perft::perft;
-use crate::search::SearchType;
+use crate::search_type::SearchType;
 use crate::{board::Board, types::pieces::Color};
 use std::thread;
 
@@ -120,19 +120,39 @@ pub fn parse_time(buff: &[&str]) -> Clock {
     while let Some(uci_opt) = iter.next() {
         match *uci_opt {
             "wtime" => {
-                let raw_time = iter.next().unwrap().parse::<i64>().expect("Valid i64").max(1);
+                let raw_time = iter
+                    .next()
+                    .unwrap()
+                    .parse::<i64>()
+                    .expect("Valid i64")
+                    .max(1);
                 game_time.time_remaining[Color::White] = Duration::from_millis(raw_time as u64);
             }
             "btime" => {
-                let raw_time = iter.next().unwrap().parse::<i64>().expect("Valid i64").max(1);
+                let raw_time = iter
+                    .next()
+                    .unwrap()
+                    .parse::<i64>()
+                    .expect("Valid i64")
+                    .max(1);
                 game_time.time_remaining[Color::Black] = Duration::from_millis(raw_time as u64);
             }
             "winc" => {
-                let raw_time = iter.next().unwrap().parse::<i64>().expect("Valid i64").max(1);
+                let raw_time = iter
+                    .next()
+                    .unwrap()
+                    .parse::<i64>()
+                    .expect("Valid i64")
+                    .max(1);
                 game_time.time_inc[Color::White] = Duration::from_millis(raw_time as u64);
             }
             "binc" => {
-                let raw_time = iter.next().unwrap().parse::<i64>().expect("Valid i64").max(1);
+                let raw_time = iter
+                    .next()
+                    .unwrap()
+                    .parse::<i64>()
+                    .expect("Valid i64")
+                    .max(1);
                 game_time.time_inc[Color::Black] = Duration::from_millis(raw_time as u64);
             }
             "movestogo" => {
@@ -151,27 +171,27 @@ pub fn handle_go(
     msg: &mut Option<String>,
     halt: &AtomicBool,
 ) {
-    let search_type;
-    if buffer.contains(&"depth") {
+    let search_type = if buffer.contains(&"depth") {
         let mut iter = buffer.iter().skip(2);
         let depth = iter.next().unwrap().parse::<i32>().unwrap();
-        search_type = SearchType::Depth(depth as u64, u64::MAX);
+        SearchType::Depth(depth as u64, u64::MAX)
     } else if buffer.contains(&"nodes") {
         let mut iter = buffer.iter().skip(2);
         let nodes = iter.next().unwrap().parse::<u64>().unwrap();
-        search_type = SearchType::Nodes(nodes);
+        SearchType::Nodes(nodes)
     } else if buffer.contains(&"wtime") {
         let mut clock = parse_time(buffer);
         clock.recommended_time(board.stm());
-        search_type = SearchType::Time(clock);
+        SearchType::Time(clock)
     } else if buffer.contains(&"mate") {
         let mut iter = buffer.iter().skip(2);
         let ply = iter.next().unwrap().parse::<i32>().unwrap();
-        search_type = SearchType::Mate(ply);
+        SearchType::Mate(ply)
     } else {
-        search_type = SearchType::Infinite;
-    }
+        SearchType::Infinite
+    };
 
+    arena.reset();
     thread::scope(|s| {
         s.spawn(|| {
             let m = arena.start_search(board, halt, search_type, true);

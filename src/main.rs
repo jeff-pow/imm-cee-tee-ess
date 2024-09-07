@@ -21,7 +21,7 @@ mod magics;
 mod movegen;
 mod node;
 mod perft;
-mod search;
+mod search_type;
 mod see;
 mod types;
 mod uci;

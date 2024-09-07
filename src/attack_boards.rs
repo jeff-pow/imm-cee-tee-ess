@@ -90,14 +90,18 @@ pub const BETWEEN_SQUARES: [[Bitboard; 64]; 64] = {
                     arr[src as usize][dest as usize].0 |= i.bitboard().0;
                     i = i.shift(Direction::South);
                 }
-            } else if (dest - src) % Direction::NorthWest as u8 == 0 && Square(dest).file() < Square(src).file() {
+            } else if (dest - src) % Direction::NorthWest as u8 == 0
+                && Square(dest).file() < Square(src).file()
+            {
                 let mut i = Square(dest).shift(Direction::SouthEast);
 
                 while i.0 > src && i.is_valid() {
                     arr[src as usize][dest as usize].0 |= i.bitboard().0;
                     i = i.shift(Direction::SouthEast);
                 }
-            } else if (dest - src) % Direction::NorthEast as u8 == 0 && Square(dest).file() > Square(src).file() {
+            } else if (dest - src) % Direction::NorthEast as u8 == 0
+                && Square(dest).file() > Square(src).file()
+            {
                 let mut i = Square(dest).shift(Direction::SouthWest);
 
                 while i.0 > src && i.is_valid() {
@@ -167,8 +171,9 @@ pub fn valid_pinned_moves(king: Square, pinned: Square) -> Bitboard {
     PINNED_MOVES[king][pinned]
 }
 
-/// Indexed by PINNED_MOVES[King square][Pinned piece]
-const PINNED_MOVES: [[Bitboard; 64]; 64] = const_array!(|sq1, 64| const_array!(|sq2, 64| pinned_attack(sq1, sq2)));
+/// Indexed by `PINNED_MOVES`[King square][Pinned piece]
+const PINNED_MOVES: [[Bitboard; 64]; 64] =
+    const_array!(|sq1, 64| const_array!(|sq2, 64| pinned_attack(sq1, sq2)));
 
 #[macro_export]
 /// Credit for this macro goes to akimbo
@@ -198,7 +203,13 @@ mod test_attack_boards {
         assert_eq!(pawn_attacks(p_sq, Color::White), Square(49).bitboard());
 
         let p_sq = Square(19);
-        assert_eq!(pawn_attacks(p_sq, Color::Black), (Square(10).bitboard() | Square(12).bitboard()));
-        assert_eq!(pawn_attacks(p_sq, Color::White), (Square(26).bitboard() | Square(28).bitboard()));
+        assert_eq!(
+            pawn_attacks(p_sq, Color::Black),
+            (Square(10).bitboard() | Square(12).bitboard())
+        );
+        assert_eq!(
+            pawn_attacks(p_sq, Color::White),
+            (Square(26).bitboard() | Square(28).bitboard())
+        );
     }
 }
