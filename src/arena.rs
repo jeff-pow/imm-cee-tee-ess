@@ -32,6 +32,24 @@ pub struct Arena {
 }
 
 impl Arena {
+    #[cfg(test)]
+    pub fn new_smol() -> Self {
+        let cap = 3;
+        let arena = vec![Node::default(); cap];
+        Self {
+            node_list: arena,
+            hash_table: HashTable::new(27.),
+            free_list: Vec::new(),
+            root_visits: 0,
+            root_total_score: 0.,
+            depth: 0,
+            empty: 0.into(),
+            nodes: 0,
+            lru_head: None,
+            lru_tail: None,
+        }
+    }
+
     pub fn new(mb: f32, report: bool) -> Self {
         let cap = (mb * 15. / 16. * 1024. * 1024. / size_of::<Node>() as f32) as usize;
         assert!(
@@ -92,7 +110,8 @@ impl Arena {
             self[idx] = Node::new(board.game_state(), board.hash(), parent, edge_idx);
             idx
         } else {
-            panic!("No space left in arena");
+            self.remove_lru_node();
+            return self.insert(board, parent, edge_idx);
         };
 
         assert_eq!(None, self[idx].next());
@@ -118,7 +137,9 @@ impl Arena {
         let mut stack = vec![idx];
 
         while let Some(current_idx) = stack.pop() {
-            self.remove_arbitrary_node(current_idx);
+            if current_idx != idx {
+                self.remove_arbitrary_node(current_idx);
+            }
             if self[current_idx].edges().is_empty() {
                 self.free_list.push(current_idx);
             } else {
@@ -174,6 +195,7 @@ impl Arena {
     }
 
     fn insert_at_head(&mut self, idx: ArenaIndex) {
+        assert!(self[idx].next().is_none() && self[idx].prev().is_none());
         let head = self.lru_head;
         self[idx].set_next(head);
         assert!(self[idx]
@@ -209,6 +231,8 @@ impl Arena {
             assert_eq!(Some(idx), self.lru_tail);
             self.lru_tail = self[idx].prev();
         }
+        self[idx].set_prev(None);
+        self[idx].set_next(None);
 
         // Move it to the front
         self.insert_at_head(idx);
@@ -251,6 +275,7 @@ impl Arena {
 
             board.make_move(self[ptr].edges()[edge_idx].m());
 
+            dbg!(&self.node_list);
             let child_ptr = self[ptr].edges()[edge_idx].child().unwrap_or_else(|| {
                 let child_ptr = self.insert(board, Some(ptr), edge_idx);
                 assert!(!self.free_list.contains(&ptr));
@@ -607,5 +632,18 @@ mod arena_tests {
 
         arena.insert(&HistorizedBoard::default(), None, 0);
         assert_eq!(arena.empty_slots(), arena.node_list.len() - 1);
+    }
+
+    #[test]
+    fn test_insert() {
+        let mut arena = Arena::new_smol();
+        let b = HistorizedBoard::from("qn6/k7/8/8/8/8/Kq6/QN6 w - - 0 1");
+        let root = arena.insert(&b, None, u32::MAX as usize);
+        arena.playout(root, &mut b.clone(), 1);
+        arena.move_to_front(root);
+        arena.playout(root, &mut b.clone(), 2);
+        arena.move_to_front(root);
+        arena.playout(root, &mut b.clone(), 3);
+        arena.move_to_front(root);
     }
 }
