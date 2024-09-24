@@ -4,8 +4,8 @@ use crate::{
 };
 use std::{
     f32::consts::SQRT_2,
+    fmt::Debug,
     mem::size_of,
-    num::NonZeroU32,
     ops::{Index, IndexMut},
     sync::atomic::{AtomicBool, Ordering},
     time::Instant,
@@ -17,18 +17,18 @@ pub const FPU: f32 = 0.5;
 pub struct Arena {
     // node_list: Box<[Node]>,
     node_list: Vec<Node>,
-    free_list: Vec<ArenaIndex>,
+    free_list: Vec<usize>,
     hash_table: HashTable,
     depth: u64,
-    /// Pointer to the next empty slot in the 'arena'
-    empty: ArenaIndex,
+    root: Option<usize>,
     nodes: u64,
+    empty: usize,
 
     root_visits: i32,
     root_total_score: f32,
 
-    lru_head: Option<ArenaIndex>,
-    lru_tail: Option<ArenaIndex>,
+    lru_head: Option<usize>,
+    lru_tail: Option<usize>,
 }
 
 impl Arena {
@@ -41,9 +41,10 @@ impl Arena {
             hash_table: HashTable::new(27.),
             free_list: Vec::new(),
             root_visits: 0,
+            empty: 0,
+            root: None,
             root_total_score: 0.,
             depth: 0,
-            empty: 0.into(),
             nodes: 0,
             lru_head: None,
             lru_tail: None,
@@ -57,6 +58,7 @@ impl Arena {
             "Indexing scheme does not support tree capacities >= u32::MAX nodes, and tree must have at least one node"
         );
         let arena = vec![Node::default(); cap];
+
         let hash_table = HashTable::new(mb / 16.);
         if report {
             println!(
@@ -71,8 +73,9 @@ impl Arena {
             free_list: Vec::new(),
             root_visits: 0,
             root_total_score: 0.,
+            root: None,
+            empty: 0,
             depth: 0,
-            empty: 0.into(),
             nodes: 0,
             lru_head: None,
             lru_tail: None,
@@ -84,9 +87,10 @@ impl Arena {
         self.hash_table.clear();
         self.free_list.clear();
         self.root_visits = 0;
+        self.root = None;
         self.root_total_score = 0.;
         self.depth = 0;
-        self.empty = 0.into();
+        self.empty = 0;
         self.nodes = 0;
         self.lru_head = None;
         self.lru_tail = None;
@@ -95,10 +99,10 @@ impl Arena {
     pub fn insert(
         &mut self,
         board: &HistorizedBoard,
-        parent: Option<ArenaIndex>,
+        parent: Option<usize>,
         edge_idx: usize,
-    ) -> ArenaIndex {
-        let idx = if usize::from(self.empty) < self.capacity() {
+    ) -> usize {
+        let idx = if self.empty < self.capacity() {
             let idx = self.empty;
             // Lord help me I'm not sure why I can't inline this variable.
             self[idx] = Node::new(board.game_state(), board.hash(), parent, edge_idx);
@@ -117,36 +121,38 @@ impl Arena {
         assert_eq!(None, self[idx].next());
         assert_eq!(None, self[idx].prev());
 
-        self.insert_at_head(idx);
+        // Don't put the root in the LRU, it should never be able to be removed.
+        if self.root.is_some() {
+            self.insert_at_head(idx);
+        }
 
         idx
     }
 
-    #[expect(unused)]
-    fn parent_edge(&self, idx: ArenaIndex) -> &Edge {
-        &self[self[idx].parent().unwrap()].edges()[self[idx].parent_edge_idx()]
-    }
-
-    fn parent_edge_mut(&mut self, idx: ArenaIndex) -> &mut Edge {
-        let parent = self[idx].parent().unwrap();
-        let idx = self[idx].parent_edge_idx();
-        &mut self[parent].edges_mut()[idx]
-    }
-
-    fn delete(&mut self, idx: ArenaIndex) {
+    fn recursively_delete_node(&mut self, idx: usize) {
+        assert_ne!(self.root.unwrap(), idx);
         let mut stack = vec![idx];
 
         while let Some(current_idx) = stack.pop() {
-            if current_idx != idx {
-                self.remove_arbitrary_node(current_idx);
-            }
-            if self[current_idx].edges().is_empty() {
-                self.free_list.push(current_idx);
-            } else {
-                stack.extend(self[current_idx].edges().iter().filter_map(Edge::child));
-            }
+            stack.extend(self[current_idx].edges().iter().filter_map(Edge::child));
+
+            self.remove_arbitrary_node(current_idx);
+
             self[current_idx] = Node::default();
+
+            self.free_list.push(current_idx);
         }
+    }
+
+    #[expect(unused)]
+    fn parent_edge(&self, idx: usize) -> &Edge {
+        &self[self[idx].parent().unwrap()].edges()[self[idx].parent_edge_idx()]
+    }
+
+    fn parent_edge_mut(&mut self, idx: usize) -> &mut Edge {
+        let parent = self[idx].parent().unwrap();
+        let idx = self[idx].parent_edge_idx();
+        &mut self[parent].edges_mut()[idx]
     }
 
     pub const fn nodes(&self) -> u64 {
@@ -158,49 +164,61 @@ impl Arena {
     }
 
     fn remove_lru_node(&mut self) {
+        if self.lru_tail.unwrap() == self.root.unwrap() {
+            self.print_links();
+        }
         self.lru_tail.map_or_else(
             || panic!("Tried to remove a node while there was no tail node in LRU"),
             |tail| {
+                assert!(
+                    self[tail].prev().is_some(),
+                    "Why are we removing one element in the arena? {:?}",
+                    self
+                );
                 match self[tail].prev() {
                     Some(prev) => self[prev].set_next(None),
                     None => self.lru_head = None,
                 };
-                assert!(
-                    self[tail].prev().is_some(),
-                    "Why are we removing one element in the arena?"
-                );
                 self.lru_tail = self[tail].prev();
                 self.parent_edge_mut(tail).set_child(None);
-                self.delete(tail);
+                self.recursively_delete_node(tail);
             },
         );
     }
 
-    fn remove_arbitrary_node(&mut self, idx: ArenaIndex) {
-        assert_ne!(idx, self.lru_head.unwrap());
-        assert_ne!(idx, self.lru_tail.unwrap());
-        assert!(
-            self[idx].next().is_some(),
-            "{:?}\n\n{:?}",
-            self[self.lru_tail.unwrap()],
-            self[idx]
-        );
-        assert!(self[idx].prev().is_some());
-        let prev = self[idx].prev().unwrap();
-        let next = self[idx].next().unwrap();
-        self[prev].set_next(Some(next));
-        self[next].set_prev(Some(prev));
+    fn remove_arbitrary_node(&mut self, idx: usize) {
+        assert_ne!(idx, self.root.unwrap());
+
+        let prev = self[idx].prev();
+        let next = self[idx].next();
+
+        if let Some(next) = next {
+            self[next].set_prev(prev);
+        } else {
+            self.lru_tail = prev;
+        }
+
+        if let Some(prev) = prev {
+            self[prev].set_next(next);
+        } else {
+            self.lru_head = next;
+        }
+
         self[idx].set_prev(None);
         self[idx].set_next(None);
     }
 
-    fn insert_at_head(&mut self, idx: ArenaIndex) {
+    fn insert_at_head(&mut self, idx: usize) {
+        assert_ne!(idx, self.root.unwrap());
         assert!(self[idx].next().is_none() && self[idx].prev().is_none());
-        let head = self.lru_head;
-        self[idx].set_next(head);
+
+        let old_head = self.lru_head;
+        self[idx].set_next(old_head);
+
         assert!(self[idx]
             .prev()
             .is_none_or(|prev| self[prev].next() != Some(idx)));
+
         self[idx].set_prev(None);
         match self.lru_head {
             Some(head) => self[head].set_prev(Some(idx)),
@@ -209,40 +227,19 @@ impl Arena {
         self.lru_head = Some(idx);
     }
 
-    fn move_to_front(&mut self, idx: ArenaIndex) {
-        if self.lru_head == Some(idx) {
+    fn move_to_front(&mut self, idx: usize) {
+        if self.root.unwrap() == idx {
             return;
         }
-
-        if let Some(prev_idx) = self[idx].prev() {
-            let next = self[idx].next();
-            assert!(next.is_some() || idx == self.lru_tail.unwrap());
-            self[prev_idx].set_next(next);
-        } else {
-            assert_eq!(Some(idx), self.lru_head);
-            self.lru_head = self[idx].next();
-        }
-
-        if let Some(next_idx) = self[idx].next() {
-            let prev = self[idx].prev();
-            assert!(prev.is_some());
-            self[next_idx].set_prev(prev);
-        } else {
-            assert_eq!(Some(idx), self.lru_tail);
-            self.lru_tail = self[idx].prev();
-        }
-        self[idx].set_prev(None);
-        self[idx].set_next(None);
-
-        // Move it to the front
+        self.remove_arbitrary_node(idx);
         self.insert_at_head(idx);
     }
 
     pub fn empty_slots(&self) -> usize {
-        self.node_list.len() - usize::from(self.empty) + self.free_list.len()
+        self.node_list.len() - self.empty + self.free_list.len()
     }
 
-    fn expand(&mut self, ptr: ArenaIndex, board: &HistorizedBoard) {
+    fn expand(&mut self, ptr: usize, board: &HistorizedBoard) {
         assert!(self[ptr].edges().is_empty() && !self[ptr].is_terminal());
         let legal_moves = board.legal_moves();
         let mut edges = Vec::with_capacity(legal_moves.len());
@@ -252,14 +249,33 @@ impl Arena {
         self[ptr].set_edges(edges.into_boxed_slice());
     }
 
-    fn evaluate(&mut self, ptr: ArenaIndex, board: &HistorizedBoard) -> f32 {
-        self.move_to_front(ptr);
+    fn evaluate(&mut self, ptr: usize, board: &HistorizedBoard) -> f32 {
         self[ptr].evaluate().unwrap_or_else(|| board.scaled_eval())
+    }
+
+    fn print_links(&self) {
+        let Some(mut node) = self.lru_head else {
+            return;
+        };
+        loop {
+            println!(
+                "Node: {}, prev: {:?}, next: {:?}",
+                node,
+                self[node].prev(),
+                self[node].next()
+            );
+            if let Some(next) = self[node].next() {
+                node = next;
+            } else {
+                break;
+            }
+        }
     }
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     // Thanks lightvector! :)
-    fn playout(&mut self, ptr: ArenaIndex, board: &mut HistorizedBoard, parent_visits: i32) -> f32 {
+    fn playout(&mut self, ptr: usize, board: &mut HistorizedBoard, parent_visits: i32) -> f32 {
+        self.move_to_front(ptr);
         // Simulate
         let u = if self[ptr].is_terminal() || parent_visits == 0 {
             self.evaluate(ptr, board)
@@ -275,9 +291,11 @@ impl Arena {
 
             board.make_move(self[ptr].edges()[edge_idx].m());
 
-            dbg!(&self.node_list);
+            let len = self[ptr].edges().len();
             let child_ptr = self[ptr].edges()[edge_idx].child().unwrap_or_else(|| {
                 let child_ptr = self.insert(board, Some(ptr), edge_idx);
+                assert_ne!(ptr, child_ptr);
+                assert_eq!(self[ptr].edges().len(), len);
                 assert!(!self.free_list.contains(&ptr));
                 assert!(!self.free_list.contains(&child_ptr));
                 self[ptr].edges_mut()[edge_idx].set_child(Some(child_ptr));
@@ -291,13 +309,14 @@ impl Arena {
 
             u
         };
+        self.move_to_front(ptr);
 
         assert!((0.0..=1.0).contains(&u));
         1. - u
     }
 
     // Section 3.4 https://project.dke.maastrichtuniversity.nl/games/files/phd/Chaslot_thesis.pdf
-    fn final_move_selection(&self, ptr: ArenaIndex) -> Option<&Edge> {
+    fn final_move_selection(&self, ptr: usize) -> Option<&Edge> {
         let f = |edge: &Edge| {
             if edge.visits() == 0 {
                 f32::NEG_INFINITY
@@ -312,7 +331,7 @@ impl Arena {
     }
 
     #[allow(dead_code)]
-    fn display_stats(&self, root: ArenaIndex) {
+    fn display_stats(&self, root: usize) {
         for edge in self[root].edges() {
             println!("{} - n: {:5} - Q: {}", edge.m(), edge.visits(), edge.q());
         }
@@ -320,7 +339,7 @@ impl Arena {
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     /// Returns a usize indexing into the edge that should be selected next
-    fn select_action(&self, ptr: ArenaIndex, parent_edge_visits: i32) -> usize {
+    fn select_action(&self, ptr: usize, parent_edge_visits: i32) -> usize {
         assert!(!self[ptr].edges().is_empty());
 
         self[ptr]
@@ -347,7 +366,7 @@ impl Arena {
         search_start: Instant,
         max_depth: u64,
         avg_depth: u64,
-        root: ArenaIndex,
+        root: usize,
     ) {
         let q = self.final_move_selection(root).unwrap().q();
         print!(
@@ -362,6 +381,15 @@ impl Arena {
         );
 
         let mut ptr = Some(root);
+        while let Some(p) = ptr {
+            if let Some(edge) = self.final_move_selection(p) {
+                print!("{} ", edge.m());
+                ptr = edge.child();
+            } else {
+                break;
+            }
+        }
+
         while let Some(edge) = self.final_move_selection(ptr.unwrap()) {
             print!("{} ", edge.m());
             ptr = edge.child();
@@ -377,6 +405,7 @@ impl Arena {
         report: bool,
     ) -> Move {
         let root = self.insert(board, None, u32::MAX as usize);
+        self.root = Some(root);
         self.root_visits = 0;
         self.root_total_score = 0.;
 
@@ -388,12 +417,6 @@ impl Arena {
 
         loop {
             self.move_to_front(root);
-
-            if self.empty_slots() == 0 {
-                assert_ne!(Some(root), self.lru_tail);
-                self.remove_lru_node();
-            }
-            assert!(self.empty_slots() > 0);
 
             self.depth = 0;
 
@@ -446,121 +469,36 @@ impl Arena {
     }
 }
 
+impl Debug for Arena {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut str = String::new();
+        str += format!("Head: {:?}\n", self.lru_head).as_str();
+        str += format!("Tail: {:?}\n", self.lru_tail).as_str();
+        str += format!("{:?}\n", self.free_list).as_str();
+        str += "Nodes: \n";
+        for node in &self.node_list {
+            str += format!("{:?}\n", node).as_str();
+        }
+        write!(f, "{str}")
+    }
+}
+
 impl Default for Arena {
     fn default() -> Self {
         Self::new(2., true)
     }
 }
-
-const _: () = assert!(size_of::<ArenaIndex>() == size_of::<Option<ArenaIndex>>());
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[repr(transparent)]
-pub struct ArenaIndex(NonZeroU32);
-
-impl Index<ArenaIndex> for Arena {
+impl Index<usize> for Arena {
     type Output = Node;
 
-    fn index(&self, index: ArenaIndex) -> &Self::Output {
-        &self.node_list[usize::from(index)]
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.node_list[index]
     }
 }
 
-impl IndexMut<ArenaIndex> for Arena {
-    fn index_mut(&mut self, index: ArenaIndex) -> &mut Self::Output {
-        &mut self.node_list[usize::from(index)]
-    }
-}
-
-impl From<usize> for ArenaIndex {
-    fn from(value: usize) -> Self {
-        // Value can't be equal to u32 max because we're offsetting all indexes by one to account
-        // for the fact that zero is our None value for a NonZeroU32
-        assert_ne!(value, u32::MAX as usize);
-        Self(NonZeroU32::new(u32::try_from(value).unwrap() + 1).unwrap())
-    }
-}
-
-impl From<ArenaIndex> for usize {
-    fn from(value: ArenaIndex) -> Self {
-        (value.0.get() - 1) as Self
-    }
-}
-
-macro_rules! non_assign_ops {
-    ($($trait:ident::$fn:ident),*) => {
-        $(impl std::ops::$trait<ArenaIndex> for ArenaIndex {
-            type Output = Self;
-
-            fn $fn(self, rhs: Self) -> Self::Output {
-                Self::from(std::ops::$trait::$fn(usize::from(self), usize::from(rhs)))
-            }
-        })*
-
-        $(impl std::ops::$trait<usize> for ArenaIndex {
-            type Output = Self;
-
-            fn $fn(self, rhs: usize) -> Self::Output {
-                Self::from(std::ops::$trait::$fn(usize::from(self), usize::from(rhs)))
-            }
-        })*
-    };
-}
-non_assign_ops!(Add::add, Sub::sub);
-
-macro_rules! assign_ops {
-    ($($trait:ident::$fn:ident),*) => {
-        $(impl std::ops::$trait<ArenaIndex> for ArenaIndex {
-
-            fn $fn(&mut self, rhs: Self) {
-                let mut x = usize::from(*self);
-                std::ops::$trait::$fn(&mut x, usize::from(rhs));
-                *self = ArenaIndex::from(x);
-            }
-        })*
-
-        $(impl std::ops::$trait<usize> for ArenaIndex {
-
-            fn $fn(&mut self, rhs: usize) {
-                let mut x = self.0.get() as usize;
-                std::ops::$trait::$fn(&mut x, rhs);
-                *self = Self(NonZeroU32::new(x as u32).unwrap());
-            }
-        })*
-    };
-}
-assign_ops!(AddAssign::add_assign, SubAssign::sub_assign);
-
-#[cfg(test)]
-mod arena_index_tests {
-    use super::ArenaIndex;
-
-    #[test]
-    fn add_assign() {
-        let (mut x, y, z) = (
-            ArenaIndex::from(3),
-            ArenaIndex::from(5),
-            ArenaIndex::from(8),
-        );
-        x += y;
-        assert_eq!(x, z);
-    }
-
-    #[test]
-    fn max_value() {
-        assert!(std::panic::catch_unwind(|| ArenaIndex::from(u32::MAX as usize)).is_err());
-        // u32::MAX is the highest supported index
-        assert!(std::panic::catch_unwind(|| ArenaIndex::from(u32::MAX as usize - 1)).is_ok());
-    }
-
-    #[test]
-    fn conversions() {
-        assert_eq!(
-            u32::MAX as usize - 1,
-            usize::from(ArenaIndex::from(u32::MAX as usize - 1))
-        );
-        assert_eq!(0, usize::from(ArenaIndex::from(0)));
-        assert_eq!(47, usize::from(ArenaIndex::from(47)));
+impl IndexMut<usize> for Arena {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.node_list[index]
     }
 }
 
@@ -576,7 +514,7 @@ mod arena_tests {
 
         let idx = arena.insert(&board, None, 0);
 
-        assert_eq!(usize::from(idx), 0);
+        assert_eq!(idx, 0);
     }
 
     #[test]
@@ -587,7 +525,7 @@ mod arena_tests {
         let idx1 = arena.insert(&board, None, 0);
         let idx2 = arena.insert(&board, None, 0);
 
-        assert_eq!(usize::from(idx2), usize::from(idx1) + 1);
+        assert_eq!(idx2, idx1 + 1);
     }
 
     #[test]
@@ -597,32 +535,8 @@ mod arena_tests {
 
         for i in 0..10 {
             let idx = arena.insert(&board, None, 0);
-            assert_eq!(usize::from(idx), i);
+            assert_eq!(idx, i);
         }
-    }
-
-    #[test]
-    fn test_delete() {
-        let mut arena = Arena::new(1., false);
-        let board = HistorizedBoard::default();
-
-        for _ in 0..arena.capacity() {
-            arena.insert(&board, None, 0);
-        }
-
-        assert_eq!(0, arena.empty_slots());
-
-        arena.delete(0.into());
-        assert_eq!(1, arena.empty_slots());
-
-        arena.insert(&board, None, 0);
-        assert_eq!(0, arena.empty_slots());
-
-        for idx in 0..arena.capacity() {
-            arena.delete(idx.into());
-        }
-        // All slots should be empty
-        assert_eq!(arena.capacity(), arena.empty_slots());
     }
 
     #[test]
@@ -637,6 +551,7 @@ mod arena_tests {
     #[test]
     fn test_insert() {
         let mut arena = Arena::new_smol();
+        // Generic position with a small branching factor for the first few moves
         let b = HistorizedBoard::from("qn6/k7/8/8/8/8/Kq6/QN6 w - - 0 1");
         let root = arena.insert(&b, None, u32::MAX as usize);
         arena.playout(root, &mut b.clone(), 1);

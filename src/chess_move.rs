@@ -15,8 +15,9 @@ use crate::{
 };
 
 use MoveType::{
-    BishopCapturePromotion, BishopPromotion, Capture, DoublePush, EnPassant, KingCastle, KnightCapturePromotion,
-    KnightPromotion, Normal, QueenCapturePromotion, QueenCastle, QueenPromotion, RookCapturePromotion, RookPromotion,
+    BishopCapturePromotion, BishopPromotion, Capture, DoublePush, EnPassant, KingCastle,
+    KnightCapturePromotion, KnightPromotion, Normal, QueenCapturePromotion, QueenCastle,
+    QueenPromotion, RookCapturePromotion, RookPromotion,
 };
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -67,7 +68,11 @@ impl Move {
     pub fn is_capture(self, board: &Board) -> bool {
         let c = matches!(
             self.flag(),
-            Capture | QueenCapturePromotion | RookCapturePromotion | BishopCapturePromotion | KnightCapturePromotion
+            Capture
+                | QueenCapturePromotion
+                | RookCapturePromotion
+                | BishopCapturePromotion
+                | KnightCapturePromotion
         );
         if c {
             assert_ne!(Piece::None, board.piece_at(self.to()));
@@ -129,7 +134,27 @@ impl Move {
     }
 
     pub fn is_tactical(self, board: &Board) -> bool {
-        self.promotion().is_some() || self.is_en_passant() || board.occupancies().occupied(self.to())
+        self.promotion().is_some()
+            || self.is_en_passant()
+            || board.occupancies().occupied(self.to())
+    }
+
+    /// To Short Algebraic Notation
+    #[expect(huh_theres_no_used_lint)]
+    pub fn to_san_refact(self) -> String {
+        format!(
+            "{}{}{}",
+            self.from(),
+            self.to(),
+            match self.promotion() {
+                Some(PieceName::Queen) => "q",
+                Some(PieceName::Rook) => "r",
+                Some(PieceName::Bishop) => "b",
+                Some(PieceName::Knight) => "n",
+                Some(_) => unreachable!(),
+                None => "",
+            }
+        )
     }
 
     /// To Short Algebraic Notation
@@ -229,8 +254,10 @@ impl Move {
             }
             _ => None,
         };
-        let en_passant = { piece_moving.name() == PieceName::Pawn && !is_capture && start_column != end_column };
-        let double_push = { piece_moving.name() == PieceName::Pawn && origin_sq.dist(dest_sq) == 2 };
+        let en_passant =
+            { piece_moving.name() == PieceName::Pawn && !is_capture && start_column != end_column };
+        let double_push =
+            { piece_moving.name() == PieceName::Pawn && origin_sq.dist(dest_sq) == 2 };
         let move_type = {
             if en_passant {
                 EnPassant

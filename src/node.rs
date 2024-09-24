@@ -1,4 +1,4 @@
-use crate::{arena::ArenaIndex, edge::Edge};
+use crate::edge::Edge;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub enum GameState {
@@ -32,19 +32,14 @@ pub struct Node {
     edges: Box<[Edge]>,
     hash: u64,
 
-    prev: Option<ArenaIndex>,
-    next: Option<ArenaIndex>,
-    parent: Option<ArenaIndex>,
+    prev: Option<usize>,
+    next: Option<usize>,
+    parent: Option<usize>,
     edge_idx: u8,
 }
 
 impl Node {
-    pub fn new(
-        game_state: GameState,
-        hash: u64,
-        parent: Option<ArenaIndex>,
-        edge_idx: usize,
-    ) -> Self {
+    pub fn new(game_state: GameState, hash: u64, parent: Option<usize>, edge_idx: usize) -> Self {
         Self {
             game_state,
             edges: Box::new([]),
@@ -80,23 +75,23 @@ impl Node {
         self.edges = edges;
     }
 
-    pub const fn prev(&self) -> Option<ArenaIndex> {
+    pub const fn prev(&self) -> Option<usize> {
         self.prev
     }
 
-    pub fn set_prev(&mut self, prev: Option<ArenaIndex>) {
+    pub fn set_prev(&mut self, prev: Option<usize>) {
         self.prev = prev;
     }
 
-    pub const fn next(&self) -> Option<ArenaIndex> {
+    pub const fn next(&self) -> Option<usize> {
         self.next
     }
 
-    pub fn set_next(&mut self, next: Option<ArenaIndex>) {
+    pub fn set_next(&mut self, next: Option<usize>) {
         self.next = next;
     }
 
-    pub const fn parent(&self) -> Option<ArenaIndex> {
+    pub const fn parent(&self) -> Option<usize> {
         self.parent
     }
 

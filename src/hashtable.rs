@@ -1,11 +1,12 @@
 use std::mem::size_of;
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct TableEntry {
     key: u16,
     ptr: i32,
 }
 
+#[derive(Debug)]
 pub struct HashTable {
     data: Box<[TableEntry]>,
 }

@@ -65,16 +65,6 @@ impl Board {
 
     pub fn piece_at(&self, sq: Square) -> Piece {
         self.mailbox[sq]
-        // let piece_name = self.bitboards.iter().position(|bb| bb.contains(sq));
-        // let Some(piece_name) = piece_name else {
-        //     return Piece::None;
-        // };
-        // let color = self
-        //     .color_occupancies
-        //     .iter()
-        //     .position(|bb| bb.contains(sq))
-        //     .unwrap();
-        // Piece::new((piece_name).into(), (color).into())
     }
 
     pub fn is_material_draw(&self) -> bool {
