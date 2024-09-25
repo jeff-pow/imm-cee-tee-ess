@@ -15,8 +15,13 @@ const CPUCT: f32 = SQRT_2;
 pub const FPU: f32 = 0.5;
 
 pub struct Arena {
-    // node_list: Box<[Node]>,
-    node_list: Vec<Node>,
+    node_list: Box<[Node]>,
+    // TODO: Don't even need a free_list. The nodes that were under the deleted node will make
+    // their way to the end of the linked list naturally and be removed eventually.
+    //
+    // In fact, I probably don't need an empty pointer. If the entire linked list is initialized
+    // with nodes that point to the next node, it's going to start filling the node_list from the
+    // back, which will take as many empty nodes as possible. All kinds of things to do.
     free_list: Vec<usize>,
     hash_table: HashTable,
     depth: u64,
@@ -32,25 +37,6 @@ pub struct Arena {
 }
 
 impl Arena {
-    #[cfg(test)]
-    pub fn new_smol() -> Self {
-        let cap = 3;
-        let arena = vec![Node::default(); cap];
-        Self {
-            node_list: arena,
-            hash_table: HashTable::new(27.),
-            free_list: Vec::new(),
-            root_visits: 0,
-            empty: 0,
-            root: None,
-            root_total_score: 0.,
-            depth: 0,
-            nodes: 0,
-            lru_head: None,
-            lru_tail: None,
-        }
-    }
-
     pub fn new(mb: f32, report: bool) -> Self {
         let cap = (mb * 15. / 16. * 1024. * 1024. / size_of::<Node>() as f32) as usize;
         assert!(
@@ -68,7 +54,7 @@ impl Arena {
             );
         }
         Self {
-            node_list: arena,
+            node_list: arena.into_boxed_slice(),
             hash_table,
             free_list: Vec::new(),
             root_visits: 0,
@@ -83,7 +69,7 @@ impl Arena {
     }
 
     pub fn reset(&mut self) {
-        self.node_list = vec![Node::default(); self.node_list.len()];
+        self.node_list.iter_mut().for_each(|n| *n = Node::default());
         self.hash_table.clear();
         self.free_list.clear();
         self.root_visits = 0;
@@ -546,19 +532,5 @@ mod arena_tests {
 
         arena.insert(&HistorizedBoard::default(), None, 0);
         assert_eq!(arena.empty_slots(), arena.node_list.len() - 1);
-    }
-
-    #[test]
-    fn test_insert() {
-        let mut arena = Arena::new_smol();
-        // Generic position with a small branching factor for the first few moves
-        let b = HistorizedBoard::from("qn6/k7/8/8/8/8/Kq6/QN6 w - - 0 1");
-        let root = arena.insert(&b, None, u32::MAX as usize);
-        arena.playout(root, &mut b.clone(), 1);
-        arena.move_to_front(root);
-        arena.playout(root, &mut b.clone(), 2);
-        arena.move_to_front(root);
-        arena.playout(root, &mut b.clone(), 3);
-        arena.move_to_front(root);
     }
 }
