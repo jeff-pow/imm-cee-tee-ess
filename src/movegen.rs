@@ -232,7 +232,12 @@ fn gen_promotions<const IS_CAP: bool>(src: Square, dest: Square, moves: &mut Mov
             MoveType::KnightCapturePromotion,
         ]
     } else {
-        [MoveType::QueenPromotion, MoveType::RookPromotion, MoveType::BishopPromotion, MoveType::KnightPromotion]
+        [
+            MoveType::QueenPromotion,
+            MoveType::RookPromotion,
+            MoveType::BishopPromotion,
+            MoveType::KnightPromotion,
+        ]
     };
     for promo in promos {
         moves.push(Move::new(src, dest, promo));

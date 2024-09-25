@@ -214,7 +214,9 @@ impl Board {
         let bishops = (self.piece(PieceName::Bishop) | self.piece(PieceName::Queen)) & self.color(attacker);
         bishops.into_iter().for_each(|sq| threats |= bishop_attacks(sq, occ));
 
-        self.piece_color(attacker, PieceName::Knight).into_iter().for_each(|sq| threats |= knight_attacks(sq));
+        self.piece_color(attacker, PieceName::Knight)
+            .into_iter()
+            .for_each(|sq| threats |= knight_attacks(sq));
 
         threats |= king_attacks(self.king_square(attacker));
 

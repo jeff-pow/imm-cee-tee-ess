@@ -23,7 +23,12 @@ pub struct Accumulator {
 
 impl Default for Accumulator {
     fn default() -> Self {
-        Self { vals: [NET.feature_bias; 2], correct: [true; 2], m: Move::NULL, capture: Piece::None }
+        Self {
+            vals: [NET.feature_bias; 2],
+            correct: [true; 2],
+            m: Move::NULL,
+            capture: Piece::None,
+        }
     }
 }
 

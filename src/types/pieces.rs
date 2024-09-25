@@ -71,7 +71,15 @@ impl PieceName {
     }
 
     pub fn iter() -> impl Iterator<Item = Self> {
-        [Self::Pawn, Self::Knight, Self::Bishop, Self::Rook, Self::Queen, Self::King].into_iter()
+        [
+            Self::Pawn,
+            Self::Knight,
+            Self::Bishop,
+            Self::Rook,
+            Self::Queen,
+            Self::King,
+        ]
+        .into_iter()
     }
 }
 

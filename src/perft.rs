@@ -6,7 +6,10 @@ pub fn perft(board: &Board, depth: i32) -> usize {
     let start = Instant::now();
     let count = perft_worker::<true>(board, depth);
     let elapsed = start.elapsed().as_secs_f64();
-    println!("{count} nodes in {elapsed:.3} secs = {} nps", (count as f64 / elapsed) as u64);
+    println!(
+        "{count} nodes in {elapsed:.3} secs = {} nps",
+        (count as f64 / elapsed) as u64
+    );
     count
 }
 

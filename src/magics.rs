@@ -263,9 +263,21 @@ pub fn gen_magics() {
     assert_eq!(BISHOP_M_SIZE, bishop_table.len());
     // let magics = Magics { rook_table, rook_magics, bishop_table, bishop_magics };
     write_bin("./bins/rook_magics.bin", &rook_magics, size_of::<[MagicEntry; 64]>());
-    write_bin("./bins/rook_table.bin", &rook_table, size_of::<[Bitboard; ROOK_M_SIZE]>());
-    write_bin("./bins/bishop_table.bin", &bishop_table, size_of::<[Bitboard; BISHOP_M_SIZE]>());
-    write_bin("./bins/bishop_magics.bin", &bishop_magics, size_of::<[MagicEntry; 64]>());
+    write_bin(
+        "./bins/rook_table.bin",
+        &rook_table,
+        size_of::<[Bitboard; ROOK_M_SIZE]>(),
+    );
+    write_bin(
+        "./bins/bishop_table.bin",
+        &bishop_table,
+        size_of::<[Bitboard; BISHOP_M_SIZE]>(),
+    );
+    write_bin(
+        "./bins/bishop_magics.bin",
+        &bishop_magics,
+        size_of::<[MagicEntry; 64]>(),
+    );
 }
 
 const ROOK_TABLE: [Bitboard; ROOK_M_SIZE] = unsafe { transmute(*include_bytes!("../bins/rook_table.bin")) };
@@ -291,7 +303,12 @@ fn find_magic(mask: Bitboard, sq: Square, deltas: [Direction; 4], rng: &mut Rng)
         }
 
         let shift = 64 - mask.count_bits();
-        let magic_entry = MagicEntry { mask, magic, shift, offset: 0 };
+        let magic_entry = MagicEntry {
+            mask,
+            magic,
+            shift,
+            offset: 0,
+        };
         if let Some(table) = make_table(deltas, sq, &magic_entry) {
             return (magic_entry, table);
         }

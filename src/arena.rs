@@ -184,7 +184,12 @@ impl Arena {
     fn expand(&mut self, ptr: usize, board: &HistorizedBoard) {
         assert!(self[ptr].edges().is_empty() && !self[ptr].is_terminal());
         self[ptr].set_edges(
-            board.legal_moves().into_iter().map(|m| Edge::new(m, None)).collect::<Vec<_>>().into_boxed_slice(),
+            board
+                .legal_moves()
+                .into_iter()
+                .map(|m| Edge::new(m, None))
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
         );
     }
 
@@ -239,7 +244,10 @@ impl Arena {
                 edge.q()
             }
         };
-        self[ptr].edges().iter().max_by(|&e1, &e2| f(e1).partial_cmp(&f(e2)).unwrap())
+        self[ptr]
+            .edges()
+            .iter()
+            .max_by(|&e1, &e2| f(e1).partial_cmp(&f(e2)).unwrap())
     }
 
     #[allow(dead_code)]
@@ -336,7 +344,13 @@ impl Arena {
 
             if total_depth / self.nodes > running_avg_depth && report {
                 running_avg_depth = total_depth / self.nodes;
-                self.print_uci(self.nodes, search_start, max_depth, total_depth / self.nodes, ROOT_NODE_IDX);
+                self.print_uci(
+                    self.nodes,
+                    search_start,
+                    max_depth,
+                    total_depth / self.nodes,
+                    ROOT_NODE_IDX,
+                );
             }
 
             if self.nodes % 4096 == 0 && search_type.should_stop(self.nodes, &search_start, total_depth / self.nodes) {
@@ -345,7 +359,13 @@ impl Arena {
         }
 
         if report {
-            self.print_uci(self.nodes, search_start, max_depth, total_depth / self.nodes, ROOT_NODE_IDX);
+            self.print_uci(
+                self.nodes,
+                search_start,
+                max_depth,
+                total_depth / self.nodes,
+                ROOT_NODE_IDX,
+            );
         }
 
         self.final_move_selection(ROOT_NODE_IDX).unwrap().m()

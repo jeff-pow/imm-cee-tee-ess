@@ -198,7 +198,13 @@ mod test_attack_boards {
         assert_eq!(pawn_attacks(p_sq, Color::White), Square(49).bitboard());
 
         let p_sq = Square(19);
-        assert_eq!(pawn_attacks(p_sq, Color::Black), (Square(10).bitboard() | Square(12).bitboard()));
-        assert_eq!(pawn_attacks(p_sq, Color::White), (Square(26).bitboard() | Square(28).bitboard()));
+        assert_eq!(
+            pawn_attacks(p_sq, Color::Black),
+            (Square(10).bitboard() | Square(12).bitboard())
+        );
+        assert_eq!(
+            pawn_attacks(p_sq, Color::White),
+            (Square(26).bitboard() | Square(28).bitboard())
+        );
     }
 }
