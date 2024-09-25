@@ -28,9 +28,10 @@ impl SearchType {
         }
     }
 
-    pub fn hard_stop(&self, search_start: &Instant) -> bool {
+    pub fn hard_stop(&self, nodes: u64, search_start: &Instant) -> bool {
         match self {
             Self::Time(clock) => clock.hard_termination(search_start),
+            Self::Nodes(n) => nodes >= *n,
             _ => false,
         }
     }

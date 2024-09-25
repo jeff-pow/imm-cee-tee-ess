@@ -40,15 +40,7 @@ pub struct Node {
 
 impl Node {
     pub fn new(game_state: GameState, hash: u64, parent: Option<usize>, edge_idx: usize) -> Self {
-        Self {
-            game_state,
-            edges: Box::new([]),
-            hash,
-            prev: None,
-            next: None,
-            parent,
-            edge_idx: edge_idx as u8,
-        }
+        Self { game_state, edges: Box::new([]), hash, prev: None, next: None, parent, edge_idx: edge_idx as u8 }
     }
 
     pub fn is_terminal(&self) -> bool {

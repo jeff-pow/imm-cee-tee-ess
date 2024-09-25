@@ -10,19 +10,11 @@ pub struct Edge {
 
 impl Edge {
     pub const fn new(m: Move, child_ptr: Option<usize>) -> Self {
-        Self {
-            m,
-            child_ptr,
-            visits: 0,
-            total_score: 0.,
-        }
+        Self { m, child_ptr, visits: 0, total_score: 0. }
     }
 
     pub fn q(&self) -> f32 {
-        assert_ne!(
-            0, self.visits,
-            "User must specify value they want if node hasn't been visited before."
-        );
+        assert_ne!(0, self.visits, "User must specify value they want if node hasn't been visited before.");
         self.total_score / self.visits as f32
     }
 

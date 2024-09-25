@@ -15,9 +15,8 @@ use crate::{
 };
 
 use MoveType::{
-    BishopCapturePromotion, BishopPromotion, Capture, DoublePush, EnPassant, KingCastle,
-    KnightCapturePromotion, KnightPromotion, Normal, QueenCapturePromotion, QueenCastle,
-    QueenPromotion, RookCapturePromotion, RookPromotion,
+    BishopCapturePromotion, BishopPromotion, Capture, DoublePush, EnPassant, KingCastle, KnightCapturePromotion,
+    KnightPromotion, Normal, QueenCapturePromotion, QueenCastle, QueenPromotion, RookCapturePromotion, RookPromotion,
 };
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -68,11 +67,7 @@ impl Move {
     pub fn is_capture(self, board: &Board) -> bool {
         let c = matches!(
             self.flag(),
-            Capture
-                | QueenCapturePromotion
-                | RookCapturePromotion
-                | BishopCapturePromotion
-                | KnightCapturePromotion
+            Capture | QueenCapturePromotion | RookCapturePromotion | BishopCapturePromotion | KnightCapturePromotion
         );
         if c {
             assert_ne!(Piece::None, board.piece_at(self.to()));
@@ -134,9 +129,7 @@ impl Move {
     }
 
     pub fn is_tactical(self, board: &Board) -> bool {
-        self.promotion().is_some()
-            || self.is_en_passant()
-            || board.occupancies().occupied(self.to())
+        self.promotion().is_some() || self.is_en_passant() || board.occupancies().occupied(self.to())
     }
 
     /// To Short Algebraic Notation
@@ -185,13 +178,13 @@ impl Move {
         debug_assert!(self.is_castle());
         if self.to().dist(self.from()) != 2 {
             Castle::None
-        } else if self.to() == Square(2) {
+        } else if self.to() == Square::C1 {
             Castle::WhiteQueen
-        } else if self.to() == Square(6) {
+        } else if self.to() == Square::G1 {
             Castle::WhiteKing
-        } else if self.to() == Square(58) {
+        } else if self.to() == Square::C8 {
             Castle::BlackQueen
-        } else if self.to() == Square(62) {
+        } else if self.to() == Square::G8 {
             Castle::BlackKing
         } else {
             unreachable!()
@@ -221,17 +214,6 @@ impl Move {
             x => panic!("Invalid letter in promotion spot of move: {x:?}"),
         };
 
-        // let promotion = if vec.len() > 4 {
-        //     match vec[4] {
-        //         'q' => Some(PieceName::Queen),
-        //         'r' => Some(PieceName::Rook),
-        //         'b' => Some(PieceName::Bishop),
-        //         'n' => Some(PieceName::Knight),
-        //         _ => panic!(),
-        //     }
-        // } else {
-        //     None
-        // };
         let piece_moving = board.piece_at(origin_sq);
         assert!(piece_moving != Piece::None);
         let captured = board.piece_at(dest_sq);
@@ -240,13 +222,13 @@ impl Move {
             PieceName::King => {
                 if origin_sq.dist(dest_sq) != 2 {
                     None
-                } else if dest_sq == Square(2) {
+                } else if dest_sq == Square::C1 {
                     Some(QueenCastle)
-                } else if dest_sq == Square(6) {
+                } else if dest_sq == Square::G1 {
                     Some(KingCastle)
-                } else if dest_sq == Square(58) {
+                } else if dest_sq == Square::C8 {
                     Some(QueenCastle)
-                } else if dest_sq == Square(62) {
+                } else if dest_sq == Square::G8 {
                     Some(KingCastle)
                 } else {
                     unreachable!()
@@ -254,10 +236,8 @@ impl Move {
             }
             _ => None,
         };
-        let en_passant =
-            { piece_moving.name() == PieceName::Pawn && !is_capture && start_column != end_column };
-        let double_push =
-            { piece_moving.name() == PieceName::Pawn && origin_sq.dist(dest_sq) == 2 };
+        let en_passant = { piece_moving.name() == PieceName::Pawn && !is_capture && start_column != end_column };
+        let double_push = { piece_moving.name() == PieceName::Pawn && origin_sq.dist(dest_sq) == 2 };
         let move_type = {
             if en_passant {
                 EnPassant
