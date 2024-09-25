@@ -16,25 +16,19 @@ pub const FPU: f32 = 0.5;
 
 pub struct Arena {
     node_list: Box<[Node]>,
-    // TODO: Don't even need a free_list. The nodes that were under the deleted node will make
-    // their way to the end of the linked list naturally and be removed eventually.
-    //
-    // In fact, I probably don't need an empty pointer. If the entire linked list is initialized
-    // with nodes that point to the next node, it's going to start filling the node_list from the
-    // back, which will take as many empty nodes as possible. All kinds of things to do.
-    free_list: Vec<usize>,
     hash_table: HashTable,
     depth: u64,
-    root: Option<usize>,
     nodes: u64,
-    empty: usize,
 
     root_visits: i32,
     root_total_score: f32,
 
-    lru_head: Option<usize>,
-    lru_tail: Option<usize>,
+    lru_head: usize,
+    lru_tail: usize,
 }
+
+/// Root node will always live at the first slot and never be part of the LRU removal cache, so it can never get removed.
+const ROOT_NODE_IDX: usize = 0;
 
 impl Arena {
     pub fn new(mb: f32, report: bool) -> Self {
@@ -53,33 +47,41 @@ impl Arena {
                 hash_table.len()
             );
         }
-        Self {
+        let mut arena = Self {
             node_list: arena.into_boxed_slice(),
             hash_table,
-            free_list: Vec::new(),
             root_visits: 0,
             root_total_score: 0.,
-            root: None,
-            empty: 0,
             depth: 0,
             nodes: 0,
-            lru_head: None,
-            lru_tail: None,
+            lru_head: usize::MAX,
+            lru_tail: usize::MAX,
+        };
+        arena.create_linked_list();
+        arena
+    }
+
+    /// Bro we GOTTA call this function before returning an arena or it's gonna be BUSTED
+    fn create_linked_list(&mut self) {
+        let cap = self.node_list.len();
+        for i in 2..cap - 1 {
+            self.node_list[i].set_next(Some(i + 1));
+            self.node_list[i].set_prev(Some(i - 1));
         }
+        self.node_list[1].set_next(Some(2));
+        self.lru_head = 1;
+        self.node_list[cap - 1].set_prev(Some(cap - 2));
+        self.lru_tail = cap - 1;
     }
 
     pub fn reset(&mut self) {
         self.node_list.iter_mut().for_each(|n| *n = Node::default());
+        self.create_linked_list();
         self.hash_table.clear();
-        self.free_list.clear();
         self.root_visits = 0;
-        self.root = None;
         self.root_total_score = 0.;
         self.depth = 0;
-        self.empty = 0;
         self.nodes = 0;
-        self.lru_head = None;
-        self.lru_tail = None;
     }
 
     pub fn insert(
@@ -88,46 +90,15 @@ impl Arena {
         parent: Option<usize>,
         edge_idx: usize,
     ) -> usize {
-        let idx = if self.empty < self.capacity() {
-            let idx = self.empty;
-            // Lord help me I'm not sure why I can't inline this variable.
-            self[idx] = Node::new(board.game_state(), board.hash(), parent, edge_idx);
-
-            self.empty += 1;
-
-            self.empty - 1
-        } else if let Some(idx) = self.free_list.pop() {
-            self[idx] = Node::new(board.game_state(), board.hash(), parent, edge_idx);
-            idx
-        } else {
-            self.remove_lru_node();
-            return self.insert(board, parent, edge_idx);
-        };
+        let idx = self.remove_lru_node();
+        self[idx] = Node::new(board.game_state(), board.hash(), parent, edge_idx);
 
         assert_eq!(None, self[idx].next());
         assert_eq!(None, self[idx].prev());
 
-        // Don't put the root in the LRU, it should never be able to be removed.
-        if self.root.is_some() {
-            self.insert_at_head(idx);
-        }
+        self.insert_at_head(idx);
 
         idx
-    }
-
-    fn recursively_delete_node(&mut self, idx: usize) {
-        assert_ne!(self.root.unwrap(), idx);
-        let mut stack = vec![idx];
-
-        while let Some(current_idx) = stack.pop() {
-            stack.extend(self[current_idx].edges().iter().filter_map(Edge::child));
-
-            self.remove_arbitrary_node(current_idx);
-
-            self[current_idx] = Node::default();
-
-            self.free_list.push(current_idx);
-        }
     }
 
     #[expect(unused)]
@@ -135,10 +106,17 @@ impl Arena {
         &self[self[idx].parent().unwrap()].edges()[self[idx].parent_edge_idx()]
     }
 
+    #[expect(unused)]
     fn parent_edge_mut(&mut self, idx: usize) -> &mut Edge {
         let parent = self[idx].parent().unwrap();
+        let child_idx = self[idx].parent_edge_idx();
+        &mut self[parent].edges_mut()[child_idx]
+    }
+
+    fn try_parent_edge_mut(&mut self, idx: usize) -> Option<&mut Edge> {
+        let parent = self[idx].parent()?;
         let idx = self[idx].parent_edge_idx();
-        &mut self[parent].edges_mut()[idx]
+        self[parent].edges_mut().get_mut(idx)
     }
 
     pub const fn nodes(&self) -> u64 {
@@ -149,45 +127,34 @@ impl Arena {
         self.node_list.len()
     }
 
-    fn remove_lru_node(&mut self) {
-        if self.lru_tail.unwrap() == self.root.unwrap() {
-            self.print_links();
+    fn remove_lru_node(&mut self) -> usize {
+        let tail = self.lru_tail;
+        let prev = self[tail].prev().expect("What");
+        self[prev].set_next(None);
+        self.lru_tail = prev;
+        // Some nodes need to tell their parents they don't exist anymore, but only nodes that
+        // have actually been initialized
+        if let Some(parent) = self.try_parent_edge_mut(tail) {
+            parent.set_child(None);
         }
-        self.lru_tail.map_or_else(
-            || panic!("Tried to remove a node while there was no tail node in LRU"),
-            |tail| {
-                assert!(
-                    self[tail].prev().is_some(),
-                    "Why are we removing one element in the arena? {:?}",
-                    self
-                );
-                match self[tail].prev() {
-                    Some(prev) => self[prev].set_next(None),
-                    None => self.lru_head = None,
-                };
-                self.lru_tail = self[tail].prev();
-                self.parent_edge_mut(tail).set_child(None);
-                self.recursively_delete_node(tail);
-            },
-        );
+        tail
     }
 
     fn remove_arbitrary_node(&mut self, idx: usize) {
-        assert_ne!(idx, self.root.unwrap());
-
+        assert!(idx != ROOT_NODE_IDX);
         let prev = self[idx].prev();
         let next = self[idx].next();
 
         if let Some(next) = next {
             self[next].set_prev(prev);
         } else {
-            self.lru_tail = prev;
+            self.lru_tail = prev.expect("Didn't have a previous node to make the new tail");
         }
 
         if let Some(prev) = prev {
             self[prev].set_next(next);
         } else {
-            self.lru_head = next;
+            self.lru_head = next.expect("Didn't have a next node to make the new head");
         }
 
         self[idx].set_prev(None);
@@ -195,26 +162,21 @@ impl Arena {
     }
 
     fn insert_at_head(&mut self, idx: usize) {
-        assert_ne!(idx, self.root.unwrap());
+        assert!(idx != ROOT_NODE_IDX);
         assert!(self[idx].next().is_none() && self[idx].prev().is_none());
 
         let old_head = self.lru_head;
-        self[idx].set_next(old_head);
-
-        assert!(self[idx]
-            .prev()
-            .is_none_or(|prev| self[prev].next() != Some(idx)));
+        self[idx].set_next(Some(old_head));
+        self[old_head].set_prev(Some(idx));
 
         self[idx].set_prev(None);
-        match self.lru_head {
-            Some(head) => self[head].set_prev(Some(idx)),
-            None => self.lru_tail = Some(idx),
-        };
-        self.lru_head = Some(idx);
+
+        self.lru_head = idx;
     }
 
     fn move_to_front(&mut self, idx: usize) {
-        if self.root.unwrap() == idx {
+        // Return early to prevent root from getting put into node list
+        if ROOT_NODE_IDX == idx {
             return;
         }
         self.remove_arbitrary_node(idx);
@@ -222,7 +184,9 @@ impl Arena {
     }
 
     pub fn empty_slots(&self) -> usize {
-        self.node_list.len() - self.empty + self.free_list.len()
+        // Not sure if having a parent is the best way to denote this but its only for uci
+        // output anyway so whatevs
+        self.node_list.len() - self.node_list.iter().filter_map(|n| n.parent()).count()
     }
 
     fn expand(&mut self, ptr: usize, board: &HistorizedBoard) {
@@ -237,25 +201,6 @@ impl Arena {
 
     fn evaluate(&mut self, ptr: usize, board: &HistorizedBoard) -> f32 {
         self[ptr].evaluate().unwrap_or_else(|| board.scaled_eval())
-    }
-
-    fn print_links(&self) {
-        let Some(mut node) = self.lru_head else {
-            return;
-        };
-        loop {
-            println!(
-                "Node: {}, prev: {:?}, next: {:?}",
-                node,
-                self[node].prev(),
-                self[node].next()
-            );
-            if let Some(next) = self[node].next() {
-                node = next;
-            } else {
-                break;
-            }
-        }
     }
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
@@ -282,8 +227,6 @@ impl Arena {
                 let child_ptr = self.insert(board, Some(ptr), edge_idx);
                 assert_ne!(ptr, child_ptr);
                 assert_eq!(self[ptr].edges().len(), len);
-                assert!(!self.free_list.contains(&ptr));
-                assert!(!self.free_list.contains(&child_ptr));
                 self[ptr].edges_mut()[edge_idx].set_child(Some(child_ptr));
                 child_ptr
             });
@@ -390,8 +333,7 @@ impl Arena {
         search_type: SearchType,
         report: bool,
     ) -> Move {
-        let root = self.insert(board, None, u32::MAX as usize);
-        self.root = Some(root);
+        self[ROOT_NODE_IDX] = Node::new(board.game_state(), board.hash(), None, u32::MAX as usize);
         self.root_visits = 0;
         self.root_total_score = 0.;
 
@@ -402,13 +344,11 @@ impl Arena {
         let mut running_avg_depth = 0;
 
         loop {
-            self.move_to_front(root);
-
             self.depth = 0;
 
             let mut b = board.clone();
 
-            let u = self.playout(root, &mut b, self.root_visits);
+            let u = self.playout(ROOT_NODE_IDX, &mut b, self.root_visits);
             self.root_total_score += u;
             self.root_visits += 1;
 
@@ -430,7 +370,7 @@ impl Arena {
                     search_start,
                     max_depth,
                     total_depth / self.nodes,
-                    root,
+                    ROOT_NODE_IDX,
                 );
             }
 
@@ -447,11 +387,11 @@ impl Arena {
                 search_start,
                 max_depth,
                 total_depth / self.nodes,
-                root,
+                ROOT_NODE_IDX,
             );
         }
 
-        self.final_move_selection(root).unwrap().m()
+        self.final_move_selection(ROOT_NODE_IDX).unwrap().m()
     }
 }
 
@@ -460,7 +400,6 @@ impl Debug for Arena {
         let mut str = String::new();
         str += format!("Head: {:?}\n", self.lru_head).as_str();
         str += format!("Tail: {:?}\n", self.lru_tail).as_str();
-        str += format!("{:?}\n", self.free_list).as_str();
         str += "Nodes: \n";
         for node in &self.node_list {
             str += format!("{:?}\n", node).as_str();
