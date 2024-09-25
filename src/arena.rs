@@ -319,10 +319,6 @@ impl Arena {
             }
         }
 
-        while let Some(edge) = self.final_move_selection(ptr.unwrap()) {
-            print!("{} ", edge.m());
-            ptr = edge.child();
-        }
         println!();
     }
 
