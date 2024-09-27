@@ -69,8 +69,8 @@ pub fn main_loop() -> ! {
                 uci_opts();
             }
             "setoption" => match input[..] {
-                ["setoption", "name", "Hash", "value", _x] => (),
-                ["setoption", "name", "Clear", "Hash"] => (),
+                ["setoption", "name", "Hash", "value", x] => arena = Arena::new(x.parse().unwrap(), true),
+                ["setoption", "name", "Clear", "Hash", _x] => arena.reset(),
                 ["setoption", "name", "Threads", "value", _x] => (),
                 _ => println!("Option not recognized"),
             },
@@ -83,7 +83,7 @@ fn uci_opts() {
     println!("id name {ENGINE_NAME} {VERSION}");
     println!("id author {}", env!("CARGO_PKG_AUTHORS"));
     println!("option name Threads type spin default 1 min 1 max 1");
-    println!("option name Hash type spin default 32 min 32 max 32");
+    println!("option name Hash type spin default 32 min 1 max 16384");
     println!("uciok");
 }
 

@@ -387,7 +387,7 @@ impl Debug for Arena {
 
 impl Default for Arena {
     fn default() -> Self {
-        Self::new(2., true)
+        Self::new(32., true)
     }
 }
 impl Index<usize> for Arena {
