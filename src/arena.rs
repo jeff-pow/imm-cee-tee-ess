@@ -1,6 +1,6 @@
 use crate::{
     chess_move::Move, edge::Edge, hashtable::HashTable, historized_board::HistorizedBoard, node::Node,
-    search_type::SearchType, value::SCALE,
+    search_type::SearchType, uci::PRETTY_PRINT, value::SCALE,
 };
 use std::{
     f32::consts::SQRT_2,
@@ -250,10 +250,9 @@ impl Arena {
             .max_by(|&e1, &e2| f(e1).partial_cmp(&f(e2)).unwrap())
     }
 
-    #[allow(dead_code)]
-    fn display_stats(&self, root: usize) {
-        for edge in self[root].edges() {
-            println!("{} - n: {:5} - Q: {}", edge.m(), edge.visits(), edge.q());
+    fn display_stats(&self) {
+        for edge in self[ROOT_NODE_IDX].edges() {
+            println!("{} - n: {:8}  -  Q: {}", edge.m(), edge.visits(), edge.q());
         }
     }
 
@@ -366,6 +365,11 @@ impl Arena {
                 total_depth / self.nodes,
                 ROOT_NODE_IDX,
             );
+        }
+        // TODO: Display stats if not in UCI mode, and add output if bestmove changes or every few nodes idk
+        //       Also do tree reuse
+        if PRETTY_PRINT.load(Ordering::Relaxed) {
+            self.display_stats();
         }
 
         self.final_move_selection(ROOT_NODE_IDX).unwrap().m()

@@ -16,6 +16,8 @@ use std::thread;
 pub const ENGINE_NAME: &str = "IM CEE TEE ESS";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+pub static PRETTY_PRINT: AtomicBool = AtomicBool::new(true);
+
 /// Main loop that handles UCI communication with GUIs
 pub fn main_loop() -> ! {
     let mut msg = None;
@@ -46,9 +48,7 @@ pub fn main_loop() -> ! {
             "ucinewgame" => {
                 halt.store(false, Ordering::Relaxed);
             }
-            "eval" => {
-                todo!()
-            }
+            "eval" => println!("{}", board.scaled_eval()),
             "position" => board = position_command(&input),
             "d" => {
                 dbg!(&board.board());
@@ -67,6 +67,7 @@ pub fn main_loop() -> ! {
             }
             "uci" => {
                 uci_opts();
+                PRETTY_PRINT.store(false, Ordering::SeqCst);
             }
             "setoption" => match input[..] {
                 ["setoption", "name", "Hash", "value", x] => arena = Arena::new(x.parse().unwrap(), true),

@@ -10,7 +10,7 @@ use crate::{
     types::{
         bitboard::Bitboard,
         pieces::{Piece, PieceName},
-        square::Square,
+        square::{Square, SQUARE_NAMES},
     },
 };
 
@@ -133,12 +133,11 @@ impl Move {
     }
 
     /// To Short Algebraic Notation
-    #[expect(huh_theres_no_used_lint)]
-    pub fn to_san_refact(self) -> String {
+    pub fn to_san(self) -> String {
         format!(
             "{}{}{}",
-            self.from(),
-            self.to(),
+            SQUARE_NAMES[self.from()],
+            SQUARE_NAMES[self.to()],
             match self.promotion() {
                 Some(PieceName::Queen) => "q",
                 Some(PieceName::Rook) => "r",
@@ -148,30 +147,6 @@ impl Move {
                 None => "",
             }
         )
-    }
-
-    /// To Short Algebraic Notation
-    pub fn to_san(self) -> String {
-        let mut str = String::new();
-        let arr = ["a", "b", "c", "d", "e", "f", "g", "h"];
-        let origin_number = self.from().rank() + 1;
-        let origin_letter = self.from().file();
-        let end_number = self.to().rank() + 1;
-        let end_letter = self.to().file();
-        str += arr[origin_letter as usize];
-        str += &origin_number.to_string();
-        str += arr[end_letter as usize];
-        str += &end_number.to_string();
-        if let Some(p) = self.promotion() {
-            match p {
-                PieceName::Queen => str += "q",
-                PieceName::Rook => str += "r",
-                PieceName::Bishop => str += "b",
-                PieceName::Knight => str += "n",
-                _ => (),
-            }
-        }
-        str
     }
 
     pub fn castle_type(self) -> Castle {
