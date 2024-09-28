@@ -1,5 +1,5 @@
 use crate::arena::Arena;
-use crate::{historized_board::HistorizedBoard, search::SearchType};
+use crate::{historized_board::HistorizedBoard, search_type::SearchType};
 use std::{sync::atomic::AtomicBool, time::Instant};
 
 pub fn bench() {
@@ -14,9 +14,9 @@ pub fn bench() {
 
     for fen in BENCH_POSITIONS {
         let board: HistorizedBoard = fen.into();
+        arena.reset();
         arena.start_search(&board, &halt, search_type, false);
         nodes += arena.nodes();
-        arena = Arena::default();
     }
 
     let time = start.elapsed().as_secs_f64();

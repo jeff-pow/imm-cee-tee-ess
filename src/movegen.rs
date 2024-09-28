@@ -16,8 +16,7 @@ use super::{
 };
 use arrayvec::ArrayVec;
 
-pub const MAX_LEN: usize = 218;
-pub type MoveList = ArrayVec<Move, MAX_LEN>;
+pub type MoveList = ArrayVec<Move, 256>;
 
 impl Board {
     /// Generates all legal moves
@@ -233,7 +232,12 @@ fn gen_promotions<const IS_CAP: bool>(src: Square, dest: Square, moves: &mut Mov
             MoveType::KnightCapturePromotion,
         ]
     } else {
-        [MoveType::QueenPromotion, MoveType::RookPromotion, MoveType::BishopPromotion, MoveType::KnightPromotion]
+        [
+            MoveType::QueenPromotion,
+            MoveType::RookPromotion,
+            MoveType::BishopPromotion,
+            MoveType::KnightPromotion,
+        ]
     };
     for promo in promos {
         moves.push(Move::new(src, dest, promo));

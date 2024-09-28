@@ -4,7 +4,7 @@ use std::time::Instant;
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum SearchType {
     /// User has requested a search until a particular depth
-    /// The u64 allows for a node maximum to be established to keep bench from going for too long
+    /// The second u64 allows for a node maximum to be established to keep bench from going for too long
     Depth(u64, u64),
     /// Search determines how much time to allow itself.
     Time(Clock),
@@ -28,9 +28,10 @@ impl SearchType {
         }
     }
 
-    pub fn hard_stop(&self, search_start: &Instant) -> bool {
+    pub fn hard_stop(&self, nodes: u64, search_start: &Instant) -> bool {
         match self {
             Self::Time(clock) => clock.hard_termination(search_start),
+            Self::Nodes(n) => nodes >= *n,
             _ => false,
         }
     }

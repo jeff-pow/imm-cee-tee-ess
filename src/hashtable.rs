@@ -1,23 +1,25 @@
 use std::mem::size_of;
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct TableEntry {
     key: u16,
     ptr: i32,
 }
 
+#[derive(Debug)]
 pub struct HashTable {
     data: Box<[TableEntry]>,
 }
 
 impl HashTable {
-    pub fn new(mb: usize) -> Self {
-        let num = mb * 1024 * 1024 / size_of::<TableEntry>();
-        let data = vec![TableEntry::default(); num].into_boxed_slice();
+    pub fn new(mb: f32) -> Self {
+        let cap = (mb * 1024. * 1024. / size_of::<TableEntry>() as f32) as usize;
+        assert!(cap > 0, "Hash table must have at least 1 element");
+        let data = vec![TableEntry::default(); cap].into_boxed_slice();
         Self { data }
     }
 
-    #[allow(dead_code)]
+    #[expect(unused)]
     pub fn probe(&self, hash: u64) -> Option<i32> {
         let idx = index(hash, self.data.len());
         let key = hash as u16;
@@ -28,14 +30,20 @@ impl HashTable {
         None
     }
 
-    #[allow(dead_code)]
+    pub fn clear(&mut self) {
+        for entry in &mut self.data {
+            *entry = TableEntry::default();
+        }
+    }
+
+    #[expect(unused)]
     pub fn insert(&mut self, hash: u64, ptr: i32) {
         let idx = index(hash, self.data.len());
         let key = hash as u16;
         self.data[idx] = TableEntry { key, ptr }
     }
 
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.data.len()
     }
 }

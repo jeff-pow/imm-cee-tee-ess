@@ -57,7 +57,7 @@ pub struct Move(pub NonZeroU16);
 
 impl Move {
     pub const NULL: Option<Self> = None;
-    pub const INVALID: Self = Move(unsafe { NonZeroU16::new_unchecked(65) });
+    pub const INVALID: Self = Self(unsafe { NonZeroU16::new_unchecked(65) });
 
     pub const fn new(origin: Square, destination: Square, move_type: MoveType) -> Self {
         let m = origin.0 as u16 | ((destination.0 as u16) << 6) | ((move_type as u16) << 12);
@@ -133,6 +133,24 @@ impl Move {
     }
 
     /// To Short Algebraic Notation
+    #[expect(huh_theres_no_used_lint)]
+    pub fn to_san_refact(self) -> String {
+        format!(
+            "{}{}{}",
+            self.from(),
+            self.to(),
+            match self.promotion() {
+                Some(PieceName::Queen) => "q",
+                Some(PieceName::Rook) => "r",
+                Some(PieceName::Bishop) => "b",
+                Some(PieceName::Knight) => "n",
+                Some(_) => unreachable!(),
+                None => "",
+            }
+        )
+    }
+
+    /// To Short Algebraic Notation
     pub fn to_san(self) -> String {
         let mut str = String::new();
         let arr = ["a", "b", "c", "d", "e", "f", "g", "h"];
@@ -160,13 +178,13 @@ impl Move {
         debug_assert!(self.is_castle());
         if self.to().dist(self.from()) != 2 {
             Castle::None
-        } else if self.to() == Square(2) {
+        } else if self.to() == Square::C1 {
             Castle::WhiteQueen
-        } else if self.to() == Square(6) {
+        } else if self.to() == Square::G1 {
             Castle::WhiteKing
-        } else if self.to() == Square(58) {
+        } else if self.to() == Square::C8 {
             Castle::BlackQueen
-        } else if self.to() == Square(62) {
+        } else if self.to() == Square::G8 {
             Castle::BlackKing
         } else {
             unreachable!()
@@ -196,17 +214,6 @@ impl Move {
             x => panic!("Invalid letter in promotion spot of move: {x:?}"),
         };
 
-        // let promotion = if vec.len() > 4 {
-        //     match vec[4] {
-        //         'q' => Some(PieceName::Queen),
-        //         'r' => Some(PieceName::Rook),
-        //         'b' => Some(PieceName::Bishop),
-        //         'n' => Some(PieceName::Knight),
-        //         _ => panic!(),
-        //     }
-        // } else {
-        //     None
-        // };
         let piece_moving = board.piece_at(origin_sq);
         assert!(piece_moving != Piece::None);
         let captured = board.piece_at(dest_sq);
@@ -215,13 +222,13 @@ impl Move {
             PieceName::King => {
                 if origin_sq.dist(dest_sq) != 2 {
                     None
-                } else if dest_sq == Square(2) {
+                } else if dest_sq == Square::C1 {
                     Some(QueenCastle)
-                } else if dest_sq == Square(6) {
+                } else if dest_sq == Square::G1 {
                     Some(KingCastle)
-                } else if dest_sq == Square(58) {
+                } else if dest_sq == Square::C8 {
                     Some(QueenCastle)
-                } else if dest_sq == Square(62) {
+                } else if dest_sq == Square::G8 {
                     Some(KingCastle)
                 } else {
                     unreachable!()

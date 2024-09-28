@@ -63,16 +63,6 @@ impl Board {
 
     pub fn piece_at(&self, sq: Square) -> Piece {
         self.mailbox[sq]
-        // let piece_name = self.bitboards.iter().position(|bb| bb.contains(sq));
-        // let Some(piece_name) = piece_name else {
-        //     return Piece::None;
-        // };
-        // let color = self
-        //     .color_occupancies
-        //     .iter()
-        //     .position(|bb| bb.contains(sq))
-        //     .unwrap();
-        // Piece::new((piece_name).into(), (color).into())
     }
 
     pub fn is_material_draw(&self) -> bool {
@@ -224,7 +214,9 @@ impl Board {
         let bishops = (self.piece(PieceName::Bishop) | self.piece(PieceName::Queen)) & self.color(attacker);
         bishops.into_iter().for_each(|sq| threats |= bishop_attacks(sq, occ));
 
-        self.piece_color(attacker, PieceName::Knight).into_iter().for_each(|sq| threats |= knight_attacks(sq));
+        self.piece_color(attacker, PieceName::Knight)
+            .into_iter()
+            .for_each(|sq| threats |= knight_attacks(sq));
 
         threats |= king_attacks(self.king_square(attacker));
 

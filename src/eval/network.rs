@@ -83,7 +83,10 @@ pub(super) fn flatten(acc: &Block, weights: &Block) -> i32 {
     }
     #[cfg(not(target_feature = "avx2"))]
     {
-        acc.iter().zip(weights).map(|(&i, &w)| screlu(i) * i32::from(w)).sum::<i32>()
+        acc.iter()
+            .zip(weights)
+            .map(|(&i, &w)| screlu(i) * i32::from(w))
+            .sum::<i32>()
     }
 }
 

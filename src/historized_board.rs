@@ -38,7 +38,14 @@ impl HistorizedBoard {
         }
 
         let mut reps = 2;
-        for &hash in self.hashes.iter().rev().take(self.board.half_moves as usize + 1).skip(1).step_by(2) {
+        for &hash in self
+            .hashes
+            .iter()
+            .rev()
+            .take(self.board.half_moves as usize + 1)
+            .skip(1)
+            .step_by(2)
+        {
             reps -= u32::from(hash == self.board.zobrist_hash);
             if reps == 0 {
                 return true;
@@ -70,6 +77,9 @@ impl HistorizedBoard {
 
 impl From<&str> for HistorizedBoard {
     fn from(value: &str) -> Self {
-        Self { board: Board::from_fen(value), hashes: vec![] }
+        Self {
+            board: Board::from_fen(value),
+            hashes: vec![],
+        }
     }
 }

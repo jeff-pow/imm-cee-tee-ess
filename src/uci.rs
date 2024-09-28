@@ -9,7 +9,7 @@ use crate::fen::{parse_fen_from_buffer, STARTING_FEN};
 use crate::game_time::Clock;
 use crate::historized_board::HistorizedBoard;
 use crate::perft::perft;
-use crate::search::SearchType;
+use crate::search_type::SearchType;
 use crate::{board::Board, types::pieces::Color};
 use std::thread;
 
@@ -69,8 +69,8 @@ pub fn main_loop() -> ! {
                 uci_opts();
             }
             "setoption" => match input[..] {
-                ["setoption", "name", "Hash", "value", _x] => (),
-                ["setoption", "name", "Clear", "Hash"] => (),
+                ["setoption", "name", "Hash", "value", x] => arena = Arena::new(x.parse().unwrap(), true),
+                ["setoption", "name", "Clear", "Hash", _x] => arena.reset(),
                 ["setoption", "name", "Threads", "value", _x] => (),
                 _ => println!("Option not recognized"),
             },
@@ -83,7 +83,7 @@ fn uci_opts() {
     println!("id name {ENGINE_NAME} {VERSION}");
     println!("id author {}", env!("CARGO_PKG_AUTHORS"));
     println!("option name Threads type spin default 1 min 1 max 1");
-    println!("option name Hash type spin default 32 min 32 max 32");
+    println!("option name Hash type spin default 32 min 1 max 16384");
     println!("uciok");
 }
 
@@ -151,27 +151,27 @@ pub fn handle_go(
     msg: &mut Option<String>,
     halt: &AtomicBool,
 ) {
-    let search_type;
-    if buffer.contains(&"depth") {
+    let search_type = if buffer.contains(&"depth") {
         let mut iter = buffer.iter().skip(2);
         let depth = iter.next().unwrap().parse::<i32>().unwrap();
-        search_type = SearchType::Depth(depth as u64, u64::MAX);
+        SearchType::Depth(depth as u64, u64::MAX)
     } else if buffer.contains(&"nodes") {
         let mut iter = buffer.iter().skip(2);
         let nodes = iter.next().unwrap().parse::<u64>().unwrap();
-        search_type = SearchType::Nodes(nodes);
+        SearchType::Nodes(nodes)
     } else if buffer.contains(&"wtime") {
         let mut clock = parse_time(buffer);
         clock.recommended_time(board.stm());
-        search_type = SearchType::Time(clock);
+        SearchType::Time(clock)
     } else if buffer.contains(&"mate") {
         let mut iter = buffer.iter().skip(2);
         let ply = iter.next().unwrap().parse::<i32>().unwrap();
-        search_type = SearchType::Mate(ply);
+        SearchType::Mate(ply)
     } else {
-        search_type = SearchType::Infinite;
-    }
+        SearchType::Infinite
+    };
 
+    arena.reset();
     thread::scope(|s| {
         s.spawn(|| {
             let m = arena.start_search(board, halt, search_type, true);

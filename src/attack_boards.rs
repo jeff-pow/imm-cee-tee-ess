@@ -167,7 +167,7 @@ pub fn valid_pinned_moves(king: Square, pinned: Square) -> Bitboard {
     PINNED_MOVES[king][pinned]
 }
 
-/// Indexed by PINNED_MOVES[King square][Pinned piece]
+/// Indexed by `PINNED_MOVES`[King square][Pinned piece]
 const PINNED_MOVES: [[Bitboard; 64]; 64] = const_array!(|sq1, 64| const_array!(|sq2, 64| pinned_attack(sq1, sq2)));
 
 #[macro_export]
@@ -198,7 +198,13 @@ mod test_attack_boards {
         assert_eq!(pawn_attacks(p_sq, Color::White), Square(49).bitboard());
 
         let p_sq = Square(19);
-        assert_eq!(pawn_attacks(p_sq, Color::Black), (Square(10).bitboard() | Square(12).bitboard()));
-        assert_eq!(pawn_attacks(p_sq, Color::White), (Square(26).bitboard() | Square(28).bitboard()));
+        assert_eq!(
+            pawn_attacks(p_sq, Color::Black),
+            (Square(10).bitboard() | Square(12).bitboard())
+        );
+        assert_eq!(
+            pawn_attacks(p_sq, Color::White),
+            (Square(26).bitboard() | Square(28).bitboard())
+        );
     }
 }

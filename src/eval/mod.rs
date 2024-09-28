@@ -11,10 +11,10 @@ type Block = [i16; HIDDEN_SIZE];
 pub const INPUT_SIZE: usize = 768;
 const HIDDEN_SIZE: usize = 1536;
 
-static NET: Network = unsafe { std::mem::transmute(*include_bytes!("../../titan-beefy-400.bin")) };
+static NET: Network = unsafe { std::mem::transmute(*include_bytes!("../../bins/titan-beefy-400.bin")) };
 
 #[repr(C, align(64))]
-#[derive(Clone, Copy, Debug, PartialOrd, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialOrd, PartialEq, Eq)]
 pub struct Align64<T>(pub T);
 
 impl<T, const N: usize> Deref for Align64<[T; N]> {

@@ -11,7 +11,7 @@ use crate::{
 };
 
 // Objectively this should be an enum, but until rust allows traits to be used at comp time for
-// defining const values, defining such those values becomes a rather large PITA since we already
+// defining const values, defining such those values becomes a rather large PITA. We already
 // need to iterate through squares to define LUTs with a while loop (real forward thinking rust)
 // and converting from a number to an enum is exactly what the From trait is for. You know what
 // isn't available in const contexts? Traits ._.
@@ -187,7 +187,7 @@ impl From<usize> for Square {
 
 impl From<Square> for usize {
     fn from(value: Square) -> Self {
-        value.0 as usize
+        value.0 as Self
     }
 }
 
@@ -225,7 +225,7 @@ impl<T, const N: usize> IndexMut<Square> for [T; N] {
 
 impl Display for Square {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{:?}", self.0)
     }
 }
 

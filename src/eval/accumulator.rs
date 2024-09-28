@@ -12,7 +12,7 @@ use super::{
 use arrayvec::ArrayVec;
 use std::ops::{Index, IndexMut};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(C, align(64))]
 pub struct Accumulator {
     pub vals: [Align64<Block>; 2],
@@ -23,7 +23,12 @@ pub struct Accumulator {
 
 impl Default for Accumulator {
     fn default() -> Self {
-        Self { vals: [NET.feature_bias; 2], correct: [true; 2], m: Move::NULL, capture: Piece::None }
+        Self {
+            vals: [NET.feature_bias; 2],
+            correct: [true; 2],
+            m: Move::NULL,
+            capture: Piece::None,
+        }
     }
 }
 
@@ -53,7 +58,7 @@ impl Accumulator {
     pub fn scaled_evaluate(&self, board: &Board) -> i32 {
         let raw = self.raw_evaluate(board.stm);
         let eval = raw * board.mat_scale() / 1024;
-        eval * (200 - board.half_moves as i32) / 200
+        eval * (200 - i32::from(board.half_moves)) / 200
     }
 }
 
