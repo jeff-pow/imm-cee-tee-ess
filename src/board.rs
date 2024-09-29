@@ -45,6 +45,27 @@ impl Board {
         self.color_occupancies
     }
 
+    /// Will have unexpected behavior if either of the arrays aren't completely disjoint sets with themselves
+    pub fn from_bbs(piece_bbs: [Bitboard; 6], color_bbs: [Bitboard; 2], stm: Color) -> Self {
+        let mut mailbox = [Piece::None; 64];
+        for (piece_idx, &piece_bb) in piece_bbs.iter().enumerate() {
+            for sq in piece_bb {
+                for (color_idx, &color_bb) in color_bbs.iter().enumerate() {
+                    if color_bb.contains(sq) {
+                        mailbox[sq] = Piece::new(piece_idx.into(), color_idx.into());
+                    }
+                }
+            }
+        }
+        Self {
+            mailbox,
+            bitboards: piece_bbs,
+            color_occupancies: color_bbs,
+            stm,
+            ..Default::default()
+        }
+    }
+
     pub fn piece_color(&self, side: Color, piece: PieceName) -> Bitboard {
         self.piece(piece) & self.color(side)
     }
@@ -169,7 +190,7 @@ impl Board {
         self.piece_color(side, PieceName::Rook) | self.piece_color(side, PieceName::Queen)
     }
 
-    pub(crate) fn threats(&self) -> Bitboard {
+    pub fn threats(&self) -> Bitboard {
         let attacker = !self.stm;
         let mut threats = Bitboard::EMPTY;
         let occ = self.occupancies() ^ self.king_square(self.stm).bitboard();
@@ -282,9 +303,9 @@ impl Board {
     pub fn debug_bitboards(&self) {
         for color in Color::iter() {
             for piece in PieceName::iter() {
-                dbg!("{:?} {:?}", color, piece);
+                dbg!(color, piece);
                 dbg!(self.piece_color(color, piece));
-                dbg!("\n");
+                println!("\n");
             }
         }
     }
