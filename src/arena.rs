@@ -326,6 +326,7 @@ impl Arena {
             self[ROOT_NODE_IDX].copy_root_from(old_root);
         } else {
             // NOTE: Maybe do a reset here?
+            self.reset();
             self[ROOT_NODE_IDX] = Node::new(board.game_state(), board.hash(), None, u32::MAX as usize);
         }
 
