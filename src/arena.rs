@@ -265,7 +265,9 @@ impl Arena {
         if ptr == ROOT_NODE_IDX {
             return None;
         }
-        assert_eq!(board.hash(), self[ptr].hash());
+        if board.hash() != self[ptr].hash() {
+            return None;
+        }
 
         // Final sanity check to make sure that every edge at this position is a legal move.
         // Pretty sure that ptr could be the new root at this point.
