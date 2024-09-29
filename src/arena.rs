@@ -19,6 +19,7 @@ pub struct Arena {
     hash_table: HashTable,
     depth: u64,
     nodes: u64,
+    previous_board: Option<HistorizedBoard>,
 
     root: usize,
     root_visits: i32,
@@ -55,6 +56,7 @@ impl Arena {
             nodes: 0,
             lru_head: usize::MAX,
             lru_tail: usize::MAX,
+            previous_board: None,
         };
         arena.create_linked_list();
         arena
@@ -236,6 +238,33 @@ impl Arena {
         }
     }
 
+    fn reuse_tree(&mut self, board: &HistorizedBoard) -> Option<usize> {
+        let Some(previous_board) = &self.previous_board else {
+            return None;
+        };
+        if board.hashes().get(previous_board.hashes().len() - 1) != previous_board.hashes().last() {
+            return None;
+        }
+        let hash_diff = &board.hashes()[previous_board.hashes().len()..];
+        let mut ptr = ROOT_NODE_IDX;
+        for &hash in hash_diff {
+            let mut found = false;
+            for child in self[ptr].edges().iter().filter_map(Edge::child) {
+                if self[child].hash() == hash {
+                    ptr = child;
+                    found = true;
+                    break;
+                }
+            }
+
+            if !found {
+                return None;
+            }
+        }
+
+        Some(ptr)
+    }
+
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     /// Returns a usize indexing into the edge that should be selected next
     fn select_action(&self, ptr: usize, parent_edge_visits: i32) -> usize {
@@ -290,12 +319,18 @@ impl Arena {
         search_type: SearchType,
         report: bool,
     ) -> Move {
-        self.root = self.insert(board, None, usize::MAX);
+        let search_start = Instant::now();
+
+        if let Some(old_root) = self.reuse_tree(board) {
+            let old_root = self[old_root].clone();
+            self[ROOT_NODE_IDX].copy_root_from(old_root);
+        } else {
+            // NOTE: Maybe do a reset here?
+            self[ROOT_NODE_IDX] = Node::new(board.game_state(), board.hash(), None, u32::MAX as usize);
+        }
 
         self.root_visits = 0;
         self.root_total_score = 0.;
-
-        let search_start = Instant::now();
 
         let mut total_depth = 0;
         let mut max_depth = 0;
@@ -334,7 +369,15 @@ impl Arena {
             self.display_stats();
         }
 
+<<<<<<< HEAD
         self.final_move_selection(self.root).unwrap().m()
+||||||| parent of 91802c9 (tree reuse)
+        self.final_move_selection(ROOT_NODE_IDX).unwrap().m()
+=======
+        self.previous_board = Some(board.clone());
+
+        self.final_move_selection(ROOT_NODE_IDX).unwrap().m()
+>>>>>>> 91802c9 (tree reuse)
     }
 }
 

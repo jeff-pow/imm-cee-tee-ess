@@ -1,8 +1,12 @@
 use crate::arena::Arena;
+use crate::uci::PRETTY_PRINT;
 use crate::{historized_board::HistorizedBoard, search_type::SearchType};
+use std::sync::atomic::Ordering;
 use std::{sync::atomic::AtomicBool, time::Instant};
 
 pub fn bench() {
+    PRETTY_PRINT.store(false, Ordering::SeqCst);
+
     let halt = AtomicBool::new(false);
 
     let search_type = SearchType::Depth(4, 1_048_576);

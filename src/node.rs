@@ -98,4 +98,14 @@ impl Node {
     pub fn parent_edge_idx(&self) -> usize {
         self.edge_idx.into()
     }
+
+    pub fn hash(&self) -> u64 {
+        self.hash
+    }
+
+    pub fn copy_root_from(&mut self, old_root: Self) {
+        self.game_state = old_root.game_state;
+        self.edges = old_root.edges;
+        self.hash = old_root.hash;
+    }
 }

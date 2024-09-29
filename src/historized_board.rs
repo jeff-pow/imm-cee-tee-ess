@@ -81,6 +81,10 @@ impl HistorizedBoard {
     pub fn set_board(&mut self, board: Board) {
         self.board = board;
     }
+
+    pub fn hashes(&self) -> &[u64] {
+        &self.hashes
+    }
 }
 
 impl From<&str> for HistorizedBoard {
