@@ -172,7 +172,6 @@ pub fn handle_go(
         SearchType::Infinite
     };
 
-    arena.reset();
     thread::scope(|s| {
         s.spawn(|| {
             let m = arena.start_search(board, halt, search_type, true);
