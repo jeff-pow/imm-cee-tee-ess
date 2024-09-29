@@ -2,7 +2,6 @@ use crate::{
     chess_move::Move, edge::Edge, hashtable::HashTable, historized_board::HistorizedBoard, node::Node,
     search_type::SearchType, uci::PRETTY_PRINT, value::SCALE,
 };
-use arrayvec::ArrayVec;
 use std::{
     f32::consts::SQRT_2,
     fmt::Debug,
