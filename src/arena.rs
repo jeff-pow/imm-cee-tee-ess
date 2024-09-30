@@ -257,10 +257,6 @@ impl Arena {
         if board.hashes().get(previous_board.hashes().len() - 1) != previous_board.hashes().last() {
             return None;
         }
-        dbg!(previous_board.hashes());
-        dbg!(previous_board.hash());
-        dbg!(board.hashes());
-        dbg!(board.hash());
         let hash_diff = &board.hashes()[previous_board.hashes().len()..];
         let mut ptr = ROOT_NODE_IDX;
         for &hash in hash_diff {
