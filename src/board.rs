@@ -65,34 +65,6 @@ impl Board {
         self.mailbox[sq]
     }
 
-    pub fn is_material_draw(&self) -> bool {
-        // If we have any pawns, checkmate is still possible
-        if !self.piece(PieceName::Pawn).is_empty() {
-            return false;
-        }
-        let piece_count = self.occupancies().count_bits();
-        // King vs King can't checkmate
-        if piece_count == 2
-               // If there's three pieces and a singular knight or bishop, stalemate is impossible
-            || (piece_count == 3 && ((self.piece(PieceName::Knight).count_bits() == 1)
-            || (self.piece(PieceName::Bishop).count_bits() == 1)))
-        {
-            return true;
-        }
-        if piece_count == 4 {
-            // No combination of two knights and a king can checkmate
-            if self.piece(PieceName::Knight).count_bits() == 2 {
-                return true;
-            }
-            // If there is one bishop per side, checkmate is impossible
-            if self.color(Color::White).count_bits() == 2 && self.piece(PieceName::Bishop).count_bits() == 2 {
-                return true;
-            }
-        }
-
-        false
-    }
-
     /// Returns the type of piece captured by a move, if any
     pub fn capture(&self, m: Move) -> Piece {
         if m.is_en_passant() {
@@ -100,10 +72,6 @@ impl Board {
         } else {
             self.piece_at(m.to())
         }
-    }
-
-    pub fn is_draw(&self) -> bool {
-        self.half_moves >= 100 || self.is_material_draw()
     }
 
     pub fn has_non_pawns(&self, side: Color) -> bool {

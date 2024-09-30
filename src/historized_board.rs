@@ -17,7 +17,7 @@ impl HistorizedBoard {
     }
 
     pub fn game_state(&self) -> GameState {
-        if self.board.half_moves >= 100 || self.board.is_material_draw() || self.is_3x_repetition() {
+        if self.board.half_moves >= 100 || self.is_3x_repetition() {
             return GameState::Draw;
         }
 
