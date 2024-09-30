@@ -95,7 +95,19 @@ impl Arena {
         idx
     }
 
-    fn parent_edge_mut(&mut self, idx: usize) -> Option<&mut Edge> {
+    #[expect(unused)]
+    fn parent_edge(&self, idx: usize) -> &Edge {
+        &self[self[idx].parent().unwrap()].edges()[self[idx].parent_edge_idx()]
+    }
+
+    #[expect(unused)]
+    fn parent_edge_mut(&mut self, idx: usize) -> &mut Edge {
+        let parent = self[idx].parent().unwrap();
+        let child_idx = self[idx].parent_edge_idx();
+        &mut self[parent].edges_mut()[child_idx]
+    }
+
+    fn try_parent_edge_mut(&mut self, idx: usize) -> Option<&mut Edge> {
         let parent = self[idx].parent()?;
         let idx = self[idx].parent_edge_idx();
         self[parent].edges_mut().get_mut(idx)
@@ -245,6 +257,10 @@ impl Arena {
         if board.hashes().get(previous_board.hashes().len() - 1) != previous_board.hashes().last() {
             return None;
         }
+        dbg!(previous_board.hashes());
+        dbg!(previous_board.hash());
+        dbg!(board.hashes());
+        dbg!(board.hash());
         let hash_diff = &board.hashes()[previous_board.hashes().len()..];
         let mut ptr = ROOT_NODE_IDX;
         for &hash in hash_diff {
@@ -341,16 +357,17 @@ impl Arena {
         let search_start = Instant::now();
 
         if let Some(old_root) = self.reuse_tree(board) {
-            let old_root = self[old_root].clone();
-            self[ROOT_NODE_IDX].copy_root_from(old_root);
+            let old_root_node = self[old_root].clone();
+            self[ROOT_NODE_IDX].copy_root_from(old_root_node);
+            self.root_visits = self.parent_edge(old_root).visits();
+            self.root_total_score = self.parent_edge(old_root).total_score();
         } else {
             // NOTE: Maybe do a reset here?
             self.reset();
             self[ROOT_NODE_IDX] = Node::new(board.game_state(), board.hash(), None, u32::MAX as usize);
+            self.root_visits = 0;
+            self.root_total_score = 0.;
         }
-
-        self.root_visits = 0;
-        self.root_total_score = 0.;
 
         let mut total_depth = 0;
         let mut max_depth = 0;
