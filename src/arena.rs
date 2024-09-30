@@ -115,7 +115,7 @@ impl Arena {
         self.nodes
     }
 
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         self.node_list.len()
     }
 
@@ -178,7 +178,7 @@ impl Arena {
     pub fn empty_slots(&self) -> usize {
         // Not sure if having a parent is the best way to denote this but its only for uci
         // output anyway so whatevs
-        self.node_list.len() - self.node_list.iter().filter_map(|n| n.parent()).count()
+        self.node_list.len() - self.node_list.iter().filter_map(Node::parent).count()
     }
 
     fn expand(&mut self, ptr: usize, board: &HistorizedBoard) {
@@ -193,7 +193,7 @@ impl Arena {
         );
     }
 
-    fn evaluate(&mut self, ptr: usize, board: &HistorizedBoard) -> f32 {
+    fn evaluate(&self, ptr: usize, board: &HistorizedBoard) -> f32 {
         self[ptr].evaluate().unwrap_or_else(|| board.scaled_eval())
     }
 
@@ -383,7 +383,7 @@ impl Debug for Arena {
         str += format!("Tail: {:?}\n", self.lru_tail).as_str();
         str += "Nodes: \n";
         for node in &self.node_list {
-            str += format!("{:?}\n", node).as_str();
+            str += format!("{node:?}\n").as_str();
         }
         write!(f, "{str}")
     }
