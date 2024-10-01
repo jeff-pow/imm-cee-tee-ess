@@ -1,7 +1,8 @@
 use crate::{
     chess_move::Move, edge::Edge, hashtable::HashTable, historized_board::HistorizedBoard, node::Node,
-    search_type::SearchType, uci::PRETTY_PRINT, value::SCALE,
+    search_type::SearchType, types::pieces::Piece, uci::PRETTY_PRINT, value::SCALE,
 };
+use arrayvec::ArrayVec;
 use std::{
     f32::consts::SQRT_2,
     fmt::Debug,
@@ -206,7 +207,8 @@ impl Arena {
             }
 
             // Select
-            let edge_idx = self.select_action(ptr, parent_visits);
+            let edge_idx = self.select_action(ptr, parent_visits, board);
+            assert!(self[ptr].edges()[edge_idx].m().piece_moving(&board.board()) != Piece::None);
 
             board.make_move(self[ptr].edges()[edge_idx].m());
 
@@ -298,8 +300,15 @@ impl Arena {
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     /// Returns a usize indexing into the edge that should be selected next
-    fn select_action(&self, ptr: usize, parent_edge_visits: i32) -> usize {
+    fn select_action(&self, ptr: usize, parent_edge_visits: i32, board: &HistorizedBoard) -> usize {
         assert!(!self[ptr].edges().is_empty());
+
+        let legal_moves = board.legal_moves();
+        assert_eq!(self[ptr].hash(), board.hash());
+        assert!(legal_moves.len() == self[ptr].edges().len());
+        for m in self[ptr].edges().iter().map(|e| e.m()) {
+            assert!(legal_moves.contains(&m));
+        }
 
         self[ptr]
             .edges()
@@ -357,8 +366,18 @@ impl Arena {
             self[ROOT_NODE_IDX].copy_root_from(old_root_node);
             self.root_visits = self.parent_edge(old_root).visits();
             self.root_total_score = self.parent_edge(old_root).total_score();
+            let children = ArrayVec::<_, 256>::from_iter(self[ROOT_NODE_IDX].edges().iter().filter_map(Edge::child));
+            for child in children {
+                self[child].set_parent(Some(ROOT_NODE_IDX));
+            }
+
+            let legal_moves = board.legal_moves();
+            assert!(legal_moves.len() == self[ROOT_NODE_IDX].edges().len());
+            for m in self[ROOT_NODE_IDX].edges().iter().map(|e| e.m()) {
+                assert!(legal_moves.contains(&m));
+            }
+            self[old_root].reset();
         } else {
-            // NOTE: Maybe do a reset here?
             self.reset();
             self[ROOT_NODE_IDX] = Node::new(board.game_state(), board.hash(), None, u32::MAX as usize);
             self.root_visits = 0;
@@ -375,14 +394,6 @@ impl Arena {
             let u = self.playout(self.root, &mut board.clone(), self.root_visits);
             self.root_total_score += u;
             self.root_visits += 1;
-
-            if !self[ROOT_NODE_IDX].edges().is_empty() {
-                let legal_moves = board.legal_moves();
-                assert!(legal_moves.len() == self[ROOT_NODE_IDX].edges().len());
-                for m in self[ROOT_NODE_IDX].edges().iter().map(|e| e.m()) {
-                    assert!(legal_moves.contains(&m));
-                }
-            }
 
             self.nodes += 1;
             max_depth = self.depth.max(max_depth);

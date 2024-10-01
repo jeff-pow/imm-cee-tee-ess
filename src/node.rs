@@ -63,6 +63,10 @@ impl Node {
         self.game_state == GameState::Ongoing && self.edges.is_empty()
     }
 
+    pub fn hash(&self) -> u64 {
+        self.hash
+    }
+
     pub const fn edges(&self) -> &[Edge] {
         &self.edges
     }
@@ -99,13 +103,21 @@ impl Node {
         self.edge_idx.into()
     }
 
-    pub fn hash(&self) -> u64 {
-        self.hash
+    pub fn set_parent(&mut self, parent: Option<usize>) {
+        self.parent = parent;
     }
 
     pub fn copy_root_from(&mut self, old_root: Self) {
         self.game_state = old_root.game_state;
         self.edges = old_root.edges;
         self.hash = old_root.hash;
+    }
+
+    pub fn reset(&mut self) {
+        self.game_state = GameState::default();
+        self.edges = [].into();
+        self.hash = 0;
+        self.parent = None;
+        self.edge_idx = u8::MAX;
     }
 }
