@@ -21,18 +21,13 @@ impl SearchType {
     pub fn should_stop(&self, nodes: u64, search_start: &Instant, depth: u64) -> bool {
         match self {
             Self::Depth(d, n) => depth > *d || nodes >= *n,
-            Self::Time(clock) => clock.soft_termination(search_start),
+            Self::Time(clock) => {
+                nodes % 256 == 0 && clock.hard_termination(search_start)
+                    || nodes % 4096 == 0 && clock.soft_termination(search_start)
+            }
             Self::Nodes(n) => nodes >= *n,
             Self::Mate(_) => todo!("Mate search not implemented yet"),
             Self::Infinite => false,
-        }
-    }
-
-    pub fn hard_stop(&self, nodes: u64, search_start: &Instant) -> bool {
-        match self {
-            Self::Time(clock) => clock.hard_termination(search_start),
-            Self::Nodes(n) => nodes >= *n,
-            _ => false,
         }
     }
 }

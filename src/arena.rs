@@ -335,12 +335,6 @@ impl Arena {
 
             total_depth += self.depth;
 
-            if self.nodes % 256 == 0
-                && (halt.load(Ordering::Relaxed) || search_type.hard_stop(self.nodes, &search_start))
-            {
-                break;
-            }
-
             if total_depth / self.nodes > running_avg_depth && report {
                 running_avg_depth = total_depth / self.nodes;
                 self.print_uci(
@@ -352,7 +346,9 @@ impl Arena {
                 );
             }
 
-            if self.nodes % 4096 == 0 && search_type.should_stop(self.nodes, &search_start, total_depth / self.nodes) {
+            if halt.load(Ordering::Relaxed)
+                || search_type.should_stop(self.nodes, &search_start, total_depth / self.nodes)
+            {
                 break;
             }
         }
