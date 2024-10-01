@@ -114,7 +114,7 @@ impl Node {
     }
 
     pub fn reset(&mut self) {
-        self.game_state = GameState::default();
+        self.game_state = GameState::Ongoing;
         self.edges = [].into();
         self.hash = 0;
         self.parent = None;
