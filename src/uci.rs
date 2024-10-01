@@ -47,6 +47,7 @@ pub fn main_loop() -> ! {
             "isready" => println!("readyok"),
             "ucinewgame" => {
                 halt.store(false, Ordering::Relaxed);
+                arena.reset();
             }
             "eval" => println!("{}", board.scaled_eval()),
             "position" => board = position_command(&input),
