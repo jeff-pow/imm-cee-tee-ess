@@ -261,25 +261,11 @@ impl Arena {
         let hash_diff = &board.hashes()[previous_board.hashes().len()..];
         let mut ptr = ROOT_NODE_IDX;
         for &hash in hash_diff {
-            let mut found = false;
-            for child in self[ptr].edges().iter().filter_map(Edge::child) {
-                if self[child].hash() == hash {
-                    ptr = child;
-                    found = true;
-                    break;
-                }
-            }
-
-            if !found {
-                return None;
-            }
-        }
-
-        if ptr == ROOT_NODE_IDX {
-            return None;
-        }
-        if board.hash() != self[ptr].hash() {
-            return None;
+            ptr = self[ptr]
+                .edges()
+                .iter()
+                .filter_map(Edge::child)
+                .find(|&child| self[child].hash() == hash)?;
         }
 
         // Final sanity check to make sure that every edge at this position is a legal move.
@@ -354,13 +340,21 @@ impl Arena {
         let search_start = Instant::now();
 
         if let Some(old_root) = self.reuse_tree(board) {
-            let old_root_node = self[old_root].clone();
-            self[ROOT_NODE_IDX].copy_root_from(old_root_node);
-            self.root_visits = self.parent_edge(old_root).visits();
-            self.root_total_score = self.parent_edge(old_root).total_score();
-            let children = ArrayVec::<_, 256>::from_iter(self[ROOT_NODE_IDX].edges().iter().filter_map(Edge::child));
-            for child in children {
-                self[child].set_parent(Some(ROOT_NODE_IDX));
+            if old_root != ROOT_NODE_IDX {
+                let old_root_node = self[old_root].clone();
+
+                self[ROOT_NODE_IDX].reset();
+                self[ROOT_NODE_IDX].copy_root_from(old_root_node);
+
+                self.root_visits = self.parent_edge(old_root).visits();
+                self.root_total_score = self.parent_edge(old_root).total_score();
+
+                let children =
+                    ArrayVec::<_, 256>::from_iter(self[ROOT_NODE_IDX].edges().iter().filter_map(Edge::child));
+                for child in children {
+                    self[child].set_parent(Some(ROOT_NODE_IDX));
+                }
+                self[old_root].reset();
             }
 
             let legal_moves = board.legal_moves();
@@ -368,7 +362,6 @@ impl Arena {
             for m in self[ROOT_NODE_IDX].edges().iter().map(|e| e.m()) {
                 assert!(legal_moves.contains(&m));
             }
-            self[old_root].reset();
         } else {
             self.reset();
             self[ROOT_NODE_IDX] = Node::new(board.game_state(), board.hash(), None, u32::MAX as usize);
