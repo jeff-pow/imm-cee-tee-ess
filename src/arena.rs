@@ -376,6 +376,14 @@ impl Arena {
             self.root_total_score += u;
             self.root_visits += 1;
 
+            if !self[ROOT_NODE_IDX].edges().is_empty() {
+                let legal_moves = board.legal_moves();
+                assert!(legal_moves.len() == self[ROOT_NODE_IDX].edges().len());
+                for m in self[ROOT_NODE_IDX].edges().iter().map(|e| e.m()) {
+                    assert!(legal_moves.contains(&m));
+                }
+            }
+
             self.nodes += 1;
             max_depth = self.depth.max(max_depth);
 
