@@ -349,11 +349,6 @@ impl Arena {
                 self.root_visits = self.parent_edge(old_root).visits();
                 self.root_total_score = self.parent_edge(old_root).total_score();
 
-                let children =
-                    ArrayVec::<_, 256>::from_iter(self[ROOT_NODE_IDX].edges().iter().filter_map(Edge::child));
-                for child in children {
-                    self[child].set_parent(Some(ROOT_NODE_IDX));
-                }
                 self[old_root].reset();
             }
 
