@@ -168,6 +168,10 @@ pub fn handle_go(
         let mut iter = buffer.iter().skip(2);
         let ply = iter.next().unwrap().parse::<i32>().unwrap();
         SearchType::Mate(ply)
+    } else if buffer.contains(&"movetime") {
+        let mut iter = buffer.iter().skip(2);
+        let ms = iter.next().unwrap().parse::<u64>().unwrap();
+        SearchType::MoveTime(Duration::from_millis(ms))
     } else {
         SearchType::Infinite
     };
