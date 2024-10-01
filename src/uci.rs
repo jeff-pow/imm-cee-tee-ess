@@ -47,6 +47,7 @@ pub fn main_loop() -> ! {
             "isready" => println!("readyok"),
             "ucinewgame" => {
                 halt.store(false, Ordering::Relaxed);
+                arena.reset();
             }
             "eval" => println!(
                 "Raw eval: {:.3}\nEval post scaling: {} cp\nWDL: {:.5}",
