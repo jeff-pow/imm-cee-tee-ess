@@ -1,6 +1,6 @@
 use crate::{
     chess_move::Move, edge::Edge, hashtable::HashTable, historized_board::HistorizedBoard, node::Node,
-    search_type::SearchType, types::pieces::Piece, uci::PRETTY_PRINT, value::SCALE,
+    search_type::SearchType, uci::PRETTY_PRINT, value::SCALE,
 };
 use arrayvec::ArrayVec;
 use std::{
@@ -207,8 +207,7 @@ impl Arena {
             }
 
             // Select
-            let edge_idx = self.select_action(ptr, parent_visits, board);
-            assert!(self[ptr].edges()[edge_idx].m().piece_moving(&board.board()) != Piece::None);
+            let edge_idx = self.select_action(ptr, parent_visits);
 
             board.make_move(self[ptr].edges()[edge_idx].m());
 
@@ -300,15 +299,8 @@ impl Arena {
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     /// Returns a usize indexing into the edge that should be selected next
-    fn select_action(&self, ptr: usize, parent_edge_visits: i32, board: &HistorizedBoard) -> usize {
+    fn select_action(&self, ptr: usize, parent_edge_visits: i32) -> usize {
         assert!(!self[ptr].edges().is_empty());
-
-        let legal_moves = board.legal_moves();
-        assert_eq!(self[ptr].hash(), board.hash());
-        assert!(legal_moves.len() == self[ptr].edges().len());
-        for m in self[ptr].edges().iter().map(|e| e.m()) {
-            assert!(legal_moves.contains(&m));
-        }
 
         self[ptr]
             .edges()
