@@ -103,10 +103,6 @@ impl Node {
         self.edge_idx.into()
     }
 
-    pub fn set_parent(&mut self, parent: Option<usize>) {
-        self.parent = parent;
-    }
-
     pub fn copy_root_from(&mut self, old_root: Self) {
         self.game_state = old_root.game_state;
         self.edges = old_root.edges;

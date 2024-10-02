@@ -20,6 +20,7 @@ pub struct Arena {
     depth: u64,
     nodes: u64,
     previous_board: Option<HistorizedBoard>,
+    root: usize,
 
     root: usize,
     root_visits: i32,
@@ -49,6 +50,7 @@ impl Arena {
         let mut arena = Self {
             node_list: arena.into_boxed_slice(),
             hash_table,
+            root: usize::MAX,
             root_visits: 0,
             root_total_score: 0.,
             root: usize::MAX,
@@ -78,6 +80,7 @@ impl Arena {
     pub fn reset(&mut self) {
         self.node_list.iter_mut().for_each(|n| *n = Node::default());
         self.create_linked_list();
+        self.root = usize::MAX;
         self.hash_table.clear();
         self.root = usize::MAX;
         self.root_visits = 0;
@@ -95,16 +98,15 @@ impl Arena {
         idx
     }
 
-    #[expect(unused)]
-    fn parent_edge(&self, idx: usize) -> &Edge {
-        &self[self[idx].parent().unwrap()].edges()[self[idx].parent_edge_idx()]
+    fn parent_edge(&self, idx: usize) -> Option<&Edge> {
+        Some(&self[self[idx].parent()?].edges()[self[idx].parent_edge_idx()])
     }
 
     #[expect(unused)]
-    fn parent_edge_mut(&mut self, idx: usize) -> &mut Edge {
-        let parent = self[idx].parent().unwrap();
+    fn parent_edge_mut(&mut self, idx: usize) -> Option<&mut Edge> {
+        let parent = self[idx].parent()?;
         let child_idx = self[idx].parent_edge_idx();
-        &mut self[parent].edges_mut()[child_idx]
+        Some(&mut self[parent].edges_mut()[child_idx])
     }
 
     fn try_parent_edge_mut(&mut self, idx: usize) -> Option<&mut Edge> {
@@ -254,11 +256,14 @@ impl Arena {
         let Some(previous_board) = &self.previous_board else {
             return None;
         };
+        if self.root == usize::MAX {
+            return None;
+        }
         if board.hashes().get(previous_board.hashes().len() - 1) != previous_board.hashes().last() {
             return None;
         }
         let hash_diff = &board.hashes()[previous_board.hashes().len()..];
-        let mut ptr = ROOT_NODE_IDX;
+        let mut ptr = self.root;
         for &hash in hash_diff {
             ptr = self[ptr]
                 .edges()
@@ -338,27 +343,18 @@ impl Arena {
     ) -> Move {
         let search_start = Instant::now();
 
-        if let Some(old_root) = self.reuse_tree(board) {
-            if old_root != ROOT_NODE_IDX {
-                let old_root_node = self[old_root].clone();
+        if let Some(new_root) = self.reuse_tree(board) {
+            if self[new_root].edges().is_empty() {
+                self.reset();
+            } else if new_root != self.root {
+                self.root = new_root;
 
-                self[ROOT_NODE_IDX].reset();
-                self[ROOT_NODE_IDX].copy_root_from(old_root_node);
-
-                self.root_visits = self.parent_edge(old_root).visits();
-                self.root_total_score = self.parent_edge(old_root).total_score();
-
-                self[old_root].reset();
-            }
-
-            let legal_moves = board.legal_moves();
-            assert!(legal_moves.len() == self[ROOT_NODE_IDX].edges().len());
-            for m in self[ROOT_NODE_IDX].edges().iter().map(|e| e.m()) {
-                assert!(legal_moves.contains(&m));
+                self.root_visits = self.parent_edge(new_root).map(|e| e.visits()).unwrap_or(0);
+                self.root_total_score = self.parent_edge(new_root).map(|e| e.total_score()).unwrap_or(0.);
             }
         } else {
             self.reset();
-            self[ROOT_NODE_IDX] = Node::new(board.game_state(), board.hash(), None, u32::MAX as usize);
+            self.root = self.insert(board, None, usize::MAX);
             self.root_visits = 0;
             self.root_total_score = 0.;
         }
@@ -400,15 +396,9 @@ impl Arena {
             self.display_stats();
         }
 
-<<<<<<< HEAD
-        self.final_move_selection(self.root).unwrap().m()
-||||||| parent of 91802c9 (tree reuse)
-        self.final_move_selection(ROOT_NODE_IDX).unwrap().m()
-=======
         self.previous_board = Some(board.clone());
 
-        self.final_move_selection(ROOT_NODE_IDX).unwrap().m()
->>>>>>> 91802c9 (tree reuse)
+        self.final_move_selection(self.root).unwrap().m()
     }
 }
 
