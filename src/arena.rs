@@ -340,21 +340,10 @@ impl Arena {
     ) -> Move {
         let search_start = Instant::now();
 
-        if let Some(new_root) = self.reuse_tree(board) {
-            if self[new_root].edges().is_empty() {
-                self.reset();
-            } else if new_root != self.root {
-                self.root = new_root;
-
-                self.root_visits = self.parent_edge(new_root).map(|e| e.visits()).unwrap_or(0);
-                self.root_total_score = self.parent_edge(new_root).map(|e| e.total_score()).unwrap_or(0.);
-            }
-        } else {
-            self.reset();
-            self.root = self.insert(board, None, usize::MAX);
-            self.root_visits = 0;
-            self.root_total_score = 0.;
-        }
+        self.reset();
+        self.root = self.insert(board, None, usize::MAX);
+        self.root_visits = 0;
+        self.root_total_score = 0.;
 
         let mut total_depth = 0;
         let mut max_depth = 0;
