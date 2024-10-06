@@ -31,7 +31,7 @@ impl Board {
         let orthos = self.orthos(self.stm);
 
         let (pinned, checkers) = self.pinned_and_checkers();
-        let threats = self.threats();
+        let threats = self.threats(!self.stm);
 
         self.jumper_moves(kings, dests & !threats, &mut moves, pinned, king_attacks);
 

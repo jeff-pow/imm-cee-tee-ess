@@ -1,32 +1,26 @@
-use std::ops::{Deref, DerefMut};
-
 use self::network::Network;
 
-pub mod accumulator;
 pub mod network;
-mod simd;
-
-type Block = [i16; HIDDEN_SIZE];
+pub mod util;
 
 pub const INPUT_SIZE: usize = 768;
-const HIDDEN_SIZE: usize = 1536;
+pub const L1_SIZE: usize = 768;
 
-static NET: Network = unsafe { std::mem::transmute(*include_bytes!("../../bins/titan-beefy-400.bin")) };
-
-#[repr(C, align(64))]
-#[derive(Clone, Copy, Debug, PartialOrd, PartialEq, Eq)]
-pub struct Align64<T>(pub T);
-
-impl<T, const N: usize> Deref for Align64<[T; N]> {
-    type Target = [T; N];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<T, const N: usize> DerefMut for Align64<[T; N]> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
+static NET: Network = Network {
+    ft: network::Layer {
+        weights: [[0; 768]; 3072],
+        bias: [0; 768],
+    },
+    l1: network::PerspectiveLayer {
+        weights: [[[0; 16]; 768]; 2],
+        bias: [0; 16],
+    },
+    l2: network::Layer {
+        weights: [[0.; 16]; 16],
+        bias: [0.; 16],
+    },
+    l3: network::Layer {
+        weights: [[0.; 1]; 16],
+        bias: [0.; 1],
+    },
+};

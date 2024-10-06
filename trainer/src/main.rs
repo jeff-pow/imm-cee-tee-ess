@@ -1,7 +1,9 @@
-use trainer::go_pack;
+use trainer::train;
 
+mod advanced;
+mod threat_inputs;
 mod trainer;
 
 fn main() {
-    go_pack();
+    train();
 }

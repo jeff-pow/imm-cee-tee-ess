@@ -60,7 +60,7 @@ pub fn main_loop() -> ! {
             "bench" => bench(),
             "go" => handle_go(&mut arena, &input, &board, &mut msg, &halt),
             "perft" => {
-                perft(&board.board(), input[1].parse().unwrap());
+                perft(board.board(), input[1].parse().unwrap());
             }
             "quit" => {
                 exit(0);
@@ -110,7 +110,7 @@ fn position_command(input: &[&str]) -> HistorizedBoard {
 
 fn parse_moves(moves: &[&str], board: &mut HistorizedBoard) {
     for str in moves {
-        let m = Move::from_san(str, &board.board());
+        let m = Move::from_san(str, board.board());
         board.make_move(m);
     }
 }
