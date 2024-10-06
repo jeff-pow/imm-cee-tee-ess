@@ -190,8 +190,7 @@ impl Board {
         self.piece_color(side, PieceName::Rook) | self.piece_color(side, PieceName::Queen)
     }
 
-    pub fn threats(&self) -> Bitboard {
-        let attacker = !self.stm;
+    pub fn threats(&self, attacker: Color) -> Bitboard {
         let mut threats = Bitboard::EMPTY;
         let occ = self.occupancies() ^ self.king_square(self.stm).bitboard();
 
@@ -363,7 +362,7 @@ impl fmt::Debug for Board {
         };
         str += &self.to_string();
         str += "threats:\n";
-        str += &format!("{:?}\n", self.threats());
+        str += &format!("{:?}\n", self.threats(!self.stm));
         str += "\n";
         str += "Castles available: ";
         if self.can_castle(Castle::WhiteKing) {

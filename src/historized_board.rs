@@ -66,8 +66,8 @@ impl HistorizedBoard {
         self.board.stm
     }
 
-    pub const fn board(&self) -> Board {
-        self.board
+    pub const fn board(&self) -> &Board {
+        &self.board
     }
 
     pub fn set_board(&mut self, board: Board) {

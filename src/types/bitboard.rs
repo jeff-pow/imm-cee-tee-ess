@@ -63,6 +63,10 @@ impl Bitboard {
     pub const fn and(self, rhs: Self) -> Self {
         Self(self.0 & rhs.0)
     }
+
+    pub const fn flip_vertical(self) -> Self {
+        Self(self.0.swap_bytes())
+    }
 }
 
 impl Iterator for Bitboard {
