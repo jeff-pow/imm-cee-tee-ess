@@ -1,5 +1,5 @@
 use crate::threat_inputs::ThreatInput;
-use bullet_lib::{
+use bullet::{
     inputs::{self, InputType},
     loader, lr, operations,
     optimiser::{AdamWOptimiser, AdamWParams},

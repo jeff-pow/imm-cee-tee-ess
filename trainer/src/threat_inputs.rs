@@ -1,3 +1,12 @@
+use bullet::{
+    format::{chess::BoardIter, ChessBoard},
+    inputs::InputType,
+};
+use imm_cee_tee_ess::{
+    board::Board,
+    types::{bitboard::Bitboard, pieces::Color, square::Square},
+};
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ThreatInput;
 
@@ -28,7 +37,7 @@ impl InputType for ThreatInput {
             colors[c] |= sq.bitboard();
         }
         // Bulletformat is always stm relative, so white is stm
-        let mut board = Board::from_bbs(pieces, colors, Color::White);
+        let board = Board::from_bbs(pieces, colors, Color::White);
         let threats = board.threats(board.stm);
         let defenders = board.threats(!board.stm);
         ThreatIter {
@@ -43,7 +52,7 @@ impl InputType for ThreatInput {
     }
 }
 
-struct ThreatIter {
+pub struct ThreatIter {
     board_iter: BoardIter,
     threats: Bitboard,
     defenders: Bitboard,
