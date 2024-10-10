@@ -100,7 +100,7 @@ pub fn rook_attacks(sq: Square, occupied: Bitboard) -> Bitboard {
     }
 }
 
-/// <https://analog-hors.github.io/site/magic-bitboards/>
+// <https://analog-hors.github.io/site/magic-bitboards/>
 // impl Magics {
 //     pub fn bishop_attacks(&self, occupied: Bitboard, sq: Square) -> Bitboard {
 //         let magic = &self.bishop_magics[sq];

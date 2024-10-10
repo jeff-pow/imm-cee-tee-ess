@@ -58,8 +58,12 @@ impl HistorizedBoard {
         self.board.zobrist_hash
     }
 
-    pub fn scaled_eval(&self) -> f32 {
-        self.board.scaled_eval()
+    pub fn wdl_eval(&self) -> f32 {
+        self.board.wdl_eval()
+    }
+
+    pub fn i32_eval(&self) -> i32 {
+        self.board.i32_eval()
     }
 
     pub const fn stm(&self) -> Color {
