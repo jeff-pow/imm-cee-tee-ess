@@ -4,7 +4,7 @@ mod bench;
 pub mod board;
 pub mod chess_move;
 mod edge;
-mod eval;
+pub mod eval;
 mod fen;
 mod game_time;
 mod hashtable;

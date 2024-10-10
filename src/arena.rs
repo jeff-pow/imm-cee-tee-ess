@@ -193,8 +193,8 @@ impl Arena {
         );
     }
 
-    fn evaluate(&self, ptr: usize, board: &HistorizedBoard) -> f32 {
-        self[ptr].evaluate().unwrap_or_else(|| board.scaled_eval())
+    fn evaluate(&mut self, ptr: usize, board: &HistorizedBoard) -> f32 {
+        self[ptr].evaluate().unwrap_or_else(|| board.wdl_eval())
     }
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly

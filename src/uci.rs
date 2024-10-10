@@ -48,7 +48,7 @@ pub fn main_loop() -> ! {
             "ucinewgame" => {
                 halt.store(false, Ordering::Relaxed);
             }
-            "eval" => println!("{}", board.scaled_eval()),
+            "eval" => println!("{} cp, {} wdl", board.i32_eval(), board.wdl_eval()),
             "position" => board = position_command(&input),
             "d" => {
                 dbg!(&board.board());

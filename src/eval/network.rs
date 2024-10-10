@@ -1,28 +1,22 @@
-use super::{util::update, INPUT_SIZE, L1_SIZE, NET};
+use super::{util::f32_update, INPUT_SIZE, L1_SIZE, NET};
 
 use crate::{
     board::Board,
     types::pieces::{Color, NUM_PIECES},
 };
 use arrayvec::ArrayVec;
-/**
-* When changing activation functions, both the normalization factor and QA may need to change
-* alongside changing the crelu calls to screlu in simd and serial code.
-*/
-const QA: i16 = 255;
-const QB: i16 = 64;
-pub(super) const QAB: i16 = QA * QB;
 
 pub(super) const SCALE: i32 = 400;
 
-#[derive(Debug)]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
 pub(super) struct Layer<const M: usize, const N: usize, T> {
     pub(super) weights: [[T; N]; M],
     pub(super) bias: [T; N],
 }
 
-impl<const M: usize, const N: usize> Layer<M, N, i16> {
-    fn transform(&self, board: &Board) -> [[i16; N]; 2] {
+impl<const M: usize, const N: usize> Layer<M, N, f32> {
+    fn transform(&self, board: &Board) -> [[f32; N]; 2] {
         let mut output = [self.bias; 2];
         let mut threats = board.threats(!board.stm);
         let mut defenders = board.threats(board.stm);
@@ -40,9 +34,7 @@ impl<const M: usize, const N: usize> Layer<M, N, i16> {
                     const PIECE_OFFSET: usize = 64;
 
                     let map_feature = |feat| {
-                        2 * INPUT_SIZE * usize::from(defenders.contains(sq))
-                            + INPUT_SIZE * usize::from(threats.contains(sq))
-                            + feat
+                        2 * 768 * usize::from(defenders.contains(sq)) + 768 * usize::from(threats.contains(sq)) + feat
                     };
 
                     match view {
@@ -59,47 +51,10 @@ impl<const M: usize, const N: usize> Layer<M, N, i16> {
                     }
                 });
             }
-            update(&mut output[view], &vec, &[]);
-        }
-
-        // Activate it
-        for o in output.iter_mut().flatten() {
-            *o = (i32::from(*o).clamp(0, i32::from(QA)).pow(2)) as i16;
+            f32_update(&mut output[view], &vec, &[]);
         }
 
         output
-    }
-}
-
-#[derive(Debug)]
-#[repr(C)]
-pub(super) struct PerspectiveLayer<const M: usize, const N: usize, T> {
-    pub(super) weights: [[[T; N]; M]; 2],
-    pub(super) bias: [T; N],
-}
-
-impl<const M: usize, const N: usize> PerspectiveLayer<M, N, i16> {
-    fn forward(&self, input: [[i16; M]; 2], stm: Color) -> [f32; N] {
-        let mut output = [0; N];
-
-        for c in Color::iter() {
-            for (&i, col) in input[usize::from(c == stm)]
-                .iter()
-                .zip(self.weights[usize::from(c == stm)].iter())
-            {
-                for (o, c) in output.iter_mut().zip(col.iter()) {
-                    *o += c * i;
-                }
-            }
-        }
-
-        let mut float = [0.0; N];
-
-        for (f, (&o, &b)) in float.iter_mut().zip(output.iter().zip(self.bias.iter())) {
-            *f = (o as f32 / QA as f32 + b as f32) / QAB as f32;
-        }
-
-        float
     }
 }
 
@@ -115,11 +70,37 @@ impl<const M: usize, const N: usize> Layer<M, N, f32> {
     }
 }
 
-#[derive(Debug)]
-#[repr(C, align(64))]
-pub(super) struct Network {
-    pub(super) ft: Layer<{ INPUT_SIZE * 4 }, L1_SIZE, i16>,
-    pub(super) l1: PerspectiveLayer<L1_SIZE, 16, i16>,
+#[derive(Debug, Copy, Clone)]
+#[repr(C)]
+pub(super) struct PerspectiveLayer<const M: usize, const N: usize, T> {
+    pub(super) weights: [[[T; N]; M]; 2],
+    pub(super) bias: [T; N],
+}
+
+impl<const M: usize, const N: usize> PerspectiveLayer<M, N, f32> {
+    fn forward(&self, input: [[f32; M]; 2], stm: Color) -> [f32; N] {
+        let mut output = self.bias;
+
+        for c in Color::iter() {
+            for (&i, col) in input[usize::from(c == stm)]
+                .iter()
+                .zip(self.weights[usize::from(c == stm)].iter())
+            {
+                for (o, c) in output.iter_mut().zip(col.iter()) {
+                    *o += c * screlu(i);
+                }
+            }
+        }
+
+        output
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct Network {
+    pub(super) ft: Layer<INPUT_SIZE, L1_SIZE, f32>,
+    pub(super) l1: PerspectiveLayer<L1_SIZE, 16, f32>,
     pub(super) l2: Layer<16, 16, f32>,
     pub(super) l3: Layer<16, 1, f32>,
 }
@@ -134,43 +115,79 @@ impl Board {
     }
 
     /// Credit to viridithas for these values and concepts
-    pub fn scaled_evaluate(&self) -> i32 {
+    pub fn i32_eval(&self) -> i32 {
         let raw = self.raw_evaluate();
-        let eval = raw * self.mat_scale() / 1024;
-        eval * (200 - i32::from(self.half_moves)) / 200
+        raw * self.mat_scale() / 1024
     }
 }
-
-//impl Network {
-//    pub fn feature_idx(piece: Piece, sq: Square, view: Color, board: &Board) -> usize {
-//        const COLOR_OFFSET: usize = 64 * NUM_PIECES;
-//        const PIECE_OFFSET: usize = 64;
-//        // TODO: This totally needs adjustment
-//        let (threats, defenders) = (board.threats(!board.stm), board.threats(board.stm));
-//
-//        let map_feature = |feat, threats: Bitboard, defenders: Bitboard| {
-//            2 * INPUT_SIZE * usize::from(defenders.contains(sq.into()))
-//                + INPUT_SIZE * usize::from(threats.contains(sq.into()))
-//                + feat
-//        };
-//
-//        match view {
-//            Color::White => map_feature(
-//                usize::from(piece.color()) * COLOR_OFFSET + usize::from(piece.name()) * PIECE_OFFSET + usize::from(sq),
-//                threats,
-//                defenders,
-//            ),
-//            Color::Black => map_feature(
-//                usize::from(!piece.color()) * COLOR_OFFSET
-//                    + usize::from(piece.name()) * PIECE_OFFSET
-//                    + usize::from(sq.flip_vertical()),
-//                threats,
-//                defenders,
-//            ),
-//        }
-//    }
-//}
 
 fn screlu(x: f32) -> f32 {
     x.clamp(0., 1.).powi(2)
 }
+
+//#[repr(C)]
+//pub struct UnquantizedNetwork {
+//    pub(super) ft: Layer<INPUT_SIZE, L1_SIZE, f32>,
+//    pub(super) l1: PerspectiveLayer<L1_SIZE, 16, f32>,
+//    pub(super) l2: Layer<16, 16, f32>,
+//    pub(super) l3: Layer<16, 1, f32>,
+//}
+//
+//impl UnquantizedNetwork {
+//    pub fn quantize(&self) -> Box<Network> {
+//        let mut ret = unsafe {
+//            let mut uninit = std::mem::MaybeUninit::<Network>::uninit();
+//            let ptr = uninit.as_mut_ptr() as *mut u8;
+//            std::ptr::write_bytes(ptr, 0, std::mem::size_of::<Network>());
+//            let my_struct = uninit.assume_init();
+//            Box::new(my_struct)
+//        };
+//
+//        for (q, &raw) in ret
+//            .ft
+//            .weights
+//            .iter_mut()
+//            .flatten()
+//            .zip(self.ft.weights.iter().flatten())
+//        {
+//            //*q = f32_to_i16(raw, QA);
+//            todo!();
+//        }
+//
+//        for (q, &raw) in ret.ft.bias.iter_mut().zip(self.ft.bias.iter()) {
+//            //*q = f32_to_i16(raw, QA);
+//            todo!();
+//        }
+//
+//        for (q, &raw) in ret
+//            .l1
+//            .weights
+//            .iter_mut()
+//            .flatten()
+//            .flatten()
+//            .zip(self.l1.weights.iter().flatten().flatten())
+//        {
+//            todo!();
+//            //*q = f32_to_i16(raw, QB);
+//        }
+//
+//        for (q, &raw) in ret.l1.bias.iter_mut().zip(self.l1.bias.iter()) {
+//            todo!();
+//            //*q = f32_to_i16(raw, QB);
+//        }
+//
+//        ret.l2 = self.l2;
+//        ret.l3 = self.l3;
+//        ret
+//    }
+//}
+//
+//fn f32_to_i16(raw: f32, q: i16) -> i16 {
+//    let x = (f32::from(q) * raw) as i16;
+//
+//    if (f64::from(raw) * f64::from(q)).trunc() != f64::from(x) {
+//        panic!("Quantization failed for value: {raw}");
+//    }
+//
+//    x
+//}
