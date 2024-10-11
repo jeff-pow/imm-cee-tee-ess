@@ -21,7 +21,7 @@ impl<const M: usize, const N: usize> Layer<M, N, f32> {
         let mut threats = board.threats(!board.stm);
         let mut defenders = board.threats(board.stm);
         for view in Color::iter() {
-            if view != board.stm {
+            if view == Color::Black {
                 threats = threats.flip_vertical();
                 defenders = defenders.flip_vertical();
             }
