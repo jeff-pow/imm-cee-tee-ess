@@ -19,7 +19,7 @@ pub fn train() {
         .add_layer(1)
         .build();
 
-    trainer.load_from_checkpoint("/home/jeff/imm-cee-tee-ess/trainer/checkpoints/threats-150/");
+    //trainer.load_from_checkpoint("/home/jeff/imm-cee-tee-ess/trainer/checkpoints/threats-150/");
 
     let schedule = TrainingSchedule {
         net_id: "threats".to_string(),
@@ -27,7 +27,7 @@ pub fn train() {
         steps: TrainingSteps {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
-            start_superbatch: 150,
+            start_superbatch: 0,
             end_superbatch: 250,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.0 },
