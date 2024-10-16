@@ -18,18 +18,18 @@ pub(super) struct Layer<const M: usize, const N: usize, T> {
 impl<const M: usize, const N: usize> Layer<M, N, f32> {
     fn transform(&self, board: &Board) -> [[f32; N]; 2] {
         let mut output = [self.bias; 2];
-        let mut threats = board.threats(!board.stm);
-        let mut defenders = board.threats(board.stm);
         for view in Color::iter() {
+            let mut threats = board.threats(!view);
+            let mut defenders = board.threats(view);
             if view == Color::Black {
                 threats = threats.flip_vertical();
                 defenders = defenders.flip_vertical();
             }
-            let mut vec: ArrayVec<usize, 32> = ArrayVec::new();
+            let mut features: ArrayVec<usize, 32> = ArrayVec::new();
             for sq in board.occupancies() {
                 let p = board.piece_at(sq);
 
-                vec.push({
+                features.push({
                     const COLOR_OFFSET: usize = 64 * NUM_PIECES;
                     const PIECE_OFFSET: usize = 64;
 
@@ -51,7 +51,7 @@ impl<const M: usize, const N: usize> Layer<M, N, f32> {
                     }
                 });
             }
-            f32_update(&mut output[view], &vec, &[]);
+            f32_update(&mut output[view], &features, &[]);
         }
 
         output
@@ -118,6 +118,52 @@ impl Board {
     pub fn i32_eval(&self) -> i32 {
         let raw = self.raw_evaluate();
         raw * self.mat_scale() / 1024
+    }
+
+    pub fn calculate_features(&self) -> (Vec<usize>, Vec<usize>) {
+        let mut stm = vec![];
+        let mut xstm = vec![];
+        for view in Color::iter() {
+            let mut threats = self.threats(!view);
+            let mut defenders = self.threats(view);
+            if view == Color::Black {
+                threats = threats.flip_vertical();
+                defenders = defenders.flip_vertical();
+            }
+            for sq in self.occupancies() {
+                let p = self.piece_at(sq);
+
+                let feature = {
+                    const COLOR_OFFSET: usize = 64 * NUM_PIECES;
+                    const PIECE_OFFSET: usize = 64;
+
+                    let map_feature = |feat| {
+                        2 * 768 * usize::from(defenders.contains(sq)) + 768 * usize::from(threats.contains(sq)) + feat
+                    };
+
+                    match view {
+                        Color::White => map_feature(
+                            usize::from(p.color()) * COLOR_OFFSET
+                                + usize::from(p.name()) * PIECE_OFFSET
+                                + usize::from(sq),
+                        ),
+                        Color::Black => map_feature(
+                            usize::from(!p.color()) * COLOR_OFFSET
+                                + usize::from(p.name()) * PIECE_OFFSET
+                                + usize::from(sq.flip_vertical()),
+                        ),
+                    }
+                };
+                if view == self.stm {
+                    stm.push(feature);
+                } else {
+                    xstm.push(feature);
+                }
+            }
+        }
+        stm.sort();
+        xstm.sort();
+        (stm, xstm)
     }
 }
 
