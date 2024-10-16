@@ -38,8 +38,8 @@ impl InputType for ThreatInput {
         }
         // Bulletformat is always stm relative, so white is stm
         let board = Board::from_bbs(pieces, colors, Color::White);
-        let threats = board.threats(board.stm);
-        let defenders = board.threats(!board.stm);
+        let threats = board.threats(Color::Black);
+        let defenders = board.threats(Color::White);
         ThreatIter {
             board_iter: pos.into_iter(),
             threats,
@@ -78,7 +78,7 @@ impl Iterator for ThreatIter {
 
             (
                 map_feature(stm_feat, self.threats, self.defenders),
-                map_feature(xstm_feat, self.threats.flip_vertical(), self.defenders.flip_vertical()),
+                map_feature(xstm_feat, self.defenders.flip_vertical(), self.threats.flip_vertical()),
             )
         })
     }
