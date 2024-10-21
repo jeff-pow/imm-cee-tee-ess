@@ -21,6 +21,20 @@ fn main() {
         let pos = ChessBoard::from_str(format!("{} | 0 | 0.0", fen).as_str()).unwrap();
         let board = imm_cee_tee_ess::board::Board::from_fen(fen);
         let t = ThreatInput.feature_iter(&pos);
+        dbg!(t.threats);
+        dbg!(board.threats(board.stm));
+        println!();
+
+        dbg!(t.defenders);
+        dbg!(board.threats(!board.stm));
+        println!();
+
+        dbg!(t.defenders.flip_vertical());
+        dbg!(board.threats(!board.stm));
+        println!();
+
+        dbg!(t.threats.flip_vertical());
+        dbg!(board.threats(board.stm));
 
         let mut stm = vec![];
         let mut xstm = vec![];
