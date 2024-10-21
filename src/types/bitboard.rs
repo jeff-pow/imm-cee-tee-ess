@@ -65,15 +65,40 @@ impl Bitboard {
     }
 }
 
-impl Iterator for Bitboard {
+pub struct Biterator(Bitboard);
+
+impl Iterator for Biterator {
     type Item = Square;
 
+    #[must_use]
     fn next(&mut self) -> Option<Self::Item> {
-        if *self == Self::EMPTY {
+        if self.0.is_empty() {
             None
         } else {
-            Some(self.pop_lsb())
+            Some(self.0.pop_lsb())
         }
+    }
+}
+
+//impl Iterator for Bitboard {
+//    type Item = Square;
+//
+//    fn next(&mut self) -> Option<Self::Item> {
+//        if *self == Self::EMPTY {
+//            None
+//        } else {
+//            Some(self.pop_lsb())
+//        }
+//    }
+//}
+
+impl IntoIterator for Bitboard {
+    type Item = Square;
+
+    type IntoIter = Biterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Biterator(self)
     }
 }
 

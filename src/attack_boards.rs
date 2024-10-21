@@ -124,41 +124,35 @@ pub const BETWEEN_SQUARES: [[Bitboard; 64]; 64] = {
 };
 
 const fn pinned_attack(king: usize, pinned: usize) -> Bitboard {
-    let mut valid = 0;
     let king = Square(king as u8);
     let pinned = Square(pinned as u8);
     let Some(dir) = pinned.dir_to(king) else {
         return Bitboard::EMPTY;
     };
-    // Draw a line straight towards the attacker
-    'inner: {
-        let Some(mut current) = pinned.checked_shift(dir) else {
-            break 'inner;
-        };
-        loop {
+    let mut valid = 0;
+
+    // Draw a line the opposite way from the attacker
+    if let Some(mut current) = pinned.checked_shift(dir) {
+        while current.0 != king.0 {
             valid |= current.bitboard().0;
-            let Some(sq) = current.checked_shift(dir) else {
-                break;
-            };
-            current = sq;
-            if current.0 == king.0 {
-                break;
+            match current.checked_shift(dir) {
+                Some(next) => current = next,
+                None => break,
             }
         }
     }
-    'inner: {
-        // Draw a line the opposite way from the attacker
-        let Some(mut current) = pinned.checked_shift(dir.opp()) else {
-            break 'inner;
-        };
+
+    // Draw a line straight towards the attacker
+    if let Some(mut current) = pinned.checked_shift(dir.opp()) {
         loop {
             valid |= current.bitboard().0;
-            let Some(sq) = current.checked_shift(dir.opp()) else {
-                break;
-            };
-            current = sq;
+            match current.checked_shift(dir.opp()) {
+                Some(next) => current = next,
+                None => break,
+            }
         }
     }
+
     Bitboard(valid)
 }
 

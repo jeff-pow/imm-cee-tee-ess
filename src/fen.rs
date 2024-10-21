@@ -166,7 +166,7 @@ fn parse_castling(buf: &str) -> u8 {
     rights
 }
 
-fn find_en_passant_square(vec: &[char]) -> Option<u32> {
+const fn find_en_passant_square(vec: &[char]) -> Option<u32> {
     if vec[0] == '-' {
         return None;
     }
