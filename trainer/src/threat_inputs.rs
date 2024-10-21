@@ -54,8 +54,8 @@ impl InputType for ThreatInput {
 
 pub struct ThreatIter {
     board_iter: BoardIter,
-    threats: Bitboard,
-    defenders: Bitboard,
+    pub threats: Bitboard,
+    pub defenders: Bitboard,
 }
 
 impl Iterator for ThreatIter {
