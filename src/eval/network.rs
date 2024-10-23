@@ -2,11 +2,7 @@ use super::{util::f32_update, INPUT_SIZE, L1_SIZE, NET};
 
 use crate::{
     board::Board,
-    types::{
-        bitboard::Bitboard,
-        pieces::{Color, NUM_PIECES},
-        square::Square,
-    },
+    types::{bitboard::Bitboard, pieces::Color},
 };
 use arrayvec::ArrayVec;
 
@@ -86,14 +82,17 @@ impl<const M: usize, const N: usize> PerspectiveLayer<M, N, f32> {
     fn forward(&self, input: [[f32; M]; 2], stm: Color) -> [f32; N] {
         let mut output = self.bias;
 
-        for c in Color::iter() {
-            for (&i, col) in input[usize::from(c == stm)]
-                .iter()
-                .zip(self.weights[usize::from(c == stm)].iter())
-            {
-                for (o, c) in output.iter_mut().zip(col.iter()) {
-                    *o += c * screlu(i);
-                }
+        let (us, them) = (&input[stm], &input[!stm]);
+
+        for (&i, col) in us.iter().zip(self.weights[0].iter()) {
+            for (o, c) in output.iter_mut().zip(col.iter()) {
+                *o += c * screlu(i);
+            }
+        }
+
+        for (&i, col) in them.iter().zip(self.weights[1].iter()) {
+            for (o, c) in output.iter_mut().zip(col.iter()) {
+                *o += c * screlu(i);
             }
         }
 
@@ -117,6 +116,14 @@ impl Board {
         let l2 = NET.l2.forward(l1);
         let l3 = NET.l3.forward(l2);
         (l3[0] * SCALE as f32) as i32
+    }
+
+    pub fn asdf_eval(&self) -> f32 {
+        let ft = NET.ft.transform(self);
+        let l1 = NET.l1.forward(ft, self.stm);
+        let l2 = NET.l2.forward(l1);
+        let l3 = NET.l3.forward(l2);
+        l3[0] * SCALE as f32
     }
 
     /// Credit to viridithas for these values and concepts
