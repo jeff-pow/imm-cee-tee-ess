@@ -2,7 +2,11 @@ use super::{util::f32_update, INPUT_SIZE, L1_SIZE, NET};
 
 use crate::{
     board::Board,
-    types::pieces::{Color, NUM_PIECES},
+    types::{
+        bitboard::Bitboard,
+        pieces::{Color, NUM_PIECES},
+        square::Square,
+    },
 };
 use arrayvec::ArrayVec;
 
@@ -120,50 +124,60 @@ impl Board {
         raw * self.mat_scale() / 1024
     }
 
-    pub fn calculate_features(&self) -> (Vec<usize>, Vec<usize>) {
-        let mut stm = vec![];
-        let mut xstm = vec![];
-        for view in Color::iter() {
-            let mut threats = self.threats(!view);
-            let mut defenders = self.threats(view);
-            if view == Color::Black {
-                threats = threats.flip_vertical();
-                defenders = defenders.flip_vertical();
-            }
-            for sq in self.occupancies() {
-                let p = self.piece_at(sq);
+    pub fn features(&self) -> (Vec<usize>, Vec<usize>) {
+        let mut s = vec![];
+        let mut xs = vec![];
 
-                let feature = {
-                    const COLOR_OFFSET: usize = 64 * NUM_PIECES;
-                    const PIECE_OFFSET: usize = 64;
-
-                    let map_feature = |feat| {
-                        2 * 768 * usize::from(defenders.contains(sq)) + 768 * usize::from(threats.contains(sq)) + feat
-                    };
-
-                    match view {
-                        Color::White => map_feature(
-                            usize::from(p.color()) * COLOR_OFFSET
-                                + usize::from(p.name()) * PIECE_OFFSET
-                                + usize::from(sq),
-                        ),
-                        Color::Black => map_feature(
-                            usize::from(!p.color()) * COLOR_OFFSET
-                                + usize::from(p.name()) * PIECE_OFFSET
-                                + usize::from(sq.flip_vertical()),
-                        ),
-                    }
-                };
-                if view == self.stm {
-                    stm.push(feature);
-                } else {
-                    xstm.push(feature);
-                }
-            }
+        let mut threats = self.threats(!self.stm);
+        let mut defenders = self.threats(self.stm);
+        if self.stm == Color::Black {
+            threats = threats.flip_vertical();
+            defenders = defenders.flip_vertical();
         }
-        stm.sort();
-        xstm.sort();
-        (stm, xstm)
+        for sq in self.occupancies() {
+            let piece = self.piece_at(sq).name();
+            let color = self.piece_at(sq).color();
+            let map_feature = |feat, threats: Bitboard, defenders: Bitboard| {
+                //2 * 768 * usize::from(defenders.contains(sq)) + 768 * usize::from(threats.contains(sq)) + feat
+                feat
+            };
+            let stm_feat = [0, 384][color] + 64 * usize::from(piece) + usize::from(sq);
+            let xstm_feat = [384, 0][color] + 64 * usize::from(piece) + usize::from(sq.flip_vertical());
+            dbg!(piece as usize, color as usize, sq.0, stm_feat, xstm_feat);
+            s.push(map_feature(stm_feat, threats, defenders));
+            xs.push(map_feature(xstm_feat, defenders, threats));
+        }
+        s.sort();
+        xs.sort();
+        (s, xs)
+    }
+
+    pub fn old_features(&self) -> (Vec<usize>, Vec<usize>) {
+        let mut s = vec![];
+        let mut xs = vec![];
+
+        let mut threats = self.threats(!self.stm);
+        let mut defenders = self.threats(self.stm);
+        if self.stm == Color::Black {
+            threats = threats.flip_vertical();
+            defenders = defenders.flip_vertical();
+        }
+        for sq in self.occupancies() {
+            let piece = self.piece_at(sq).name();
+            let color = self.piece_at(sq).color();
+            let map_feature = |feat, threats: Bitboard, defenders: Bitboard| {
+                //2 * 768 * usize::from(defenders.contains(sq)) + 768 * usize::from(threats.contains(sq)) + feat
+                feat
+            };
+            let stm_feat = [0, 384][color] + 64 * usize::from(piece) + usize::from(sq);
+            let xstm_feat = [384, 0][color] + 64 * usize::from(piece) + usize::from(sq.flip_vertical());
+            dbg!(piece as usize, color as usize, sq.0, stm_feat, xstm_feat);
+            s.push(map_feature(stm_feat, threats, defenders));
+            xs.push(map_feature(xstm_feat, defenders, threats));
+        }
+        s.sort();
+        xs.sort();
+        (s, xs)
     }
 }
 
