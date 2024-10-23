@@ -2,7 +2,7 @@ use super::{L1_SIZE, NET};
 
 // Credit to akimbo. This function streamlines the assembly generated and prevents unnecessary
 // redundant loads and stores to the same simd vectors. Does sparse matmul.
-pub fn update(acc: &mut [i16], adds: &[usize], subs: &[usize]) {
+pub fn update(_acc: &mut [i16], _adds: &[usize], _subs: &[usize]) {
     //assert_eq!(acc.len(), L1_SIZE);
     //const REGISTERS: usize = 8;
     //const ELEMENTS_PER_LOOP: usize = REGISTERS * 256 / 16;

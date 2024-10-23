@@ -64,21 +64,23 @@ impl Iterator for ThreatIter {
     fn next(&mut self) -> Option<Self::Item> {
         self.board_iter.next().map(|(piece, square)| {
             let c = usize::from(piece & 8 > 0);
-            let p = 64 * usize::from(piece & 7);
+            let p = usize::from(piece & 7);
             let sq = usize::from(square);
 
             let map_feature = |feat, threats: Bitboard, defenders: Bitboard| {
-                2 * 768 * usize::from(defenders.contains(sq.into()))
-                    + 768 * usize::from(threats.contains(sq.into()))
-                    + feat
+                feat
+                //2 * 768 * usize::from(defenders.contains(sq.into()))
+                //    + 768 * usize::from(threats.contains(sq.into()))
+                //    + feat
             };
 
-            let stm_feat = [0, 384][c] + p + sq;
-            let xstm_feat = [384, 0][c] + p + (sq ^ 56);
+            let stm_feat = [0, 384][c] + 64 * p + sq;
+            let xstm_feat = [384, 0][c] + 64 * p + (sq ^ 56);
+            dbg!(p, c, sq, stm_feat, xstm_feat);
 
             (
                 map_feature(stm_feat, self.threats, self.defenders),
-                map_feature(xstm_feat, self.defenders.flip_vertical(), self.threats.flip_vertical()),
+                map_feature(xstm_feat, self.defenders, self.threats),
             )
         })
     }
