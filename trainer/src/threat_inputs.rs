@@ -68,15 +68,14 @@ impl Iterator for ThreatIter {
             let sq = usize::from(square);
 
             let map_feature = |feat, threats: Bitboard, defenders: Bitboard| {
-                feat
-                //2 * 768 * usize::from(defenders.contains(sq.into()))
-                //    + 768 * usize::from(threats.contains(sq.into()))
-                //    + feat
+                2 * 768 * usize::from(defenders.contains(sq.into()))
+                    + 768 * usize::from(threats.contains(sq.into()))
+                    + feat
             };
 
             let stm_feat = [0, 384][c] + 64 * p + sq;
             let xstm_feat = [384, 0][c] + 64 * p + (sq ^ 56);
-            dbg!(p, c, sq, stm_feat, xstm_feat);
+            //dbg!(p, c, sq, stm_feat, xstm_feat);
 
             (
                 map_feature(stm_feat, self.threats, self.defenders),

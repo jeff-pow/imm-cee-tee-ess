@@ -128,19 +128,15 @@ impl Board {
         let mut s = vec![];
         let mut xs = vec![];
 
-        let mut threats = self.threats(!self.stm);
-        let mut defenders = self.threats(self.stm);
-        if self.stm == Color::Black {
-            threats = threats.flip_vertical();
-            defenders = defenders.flip_vertical();
-        }
+        let threats = self.threats(!self.stm);
+        let defenders = self.threats(self.stm);
         for sq in self.occupancies() {
             let piece = self.piece_at(sq).name();
             let color = self.piece_at(sq).color();
             let perspective_color = usize::from(color != self.stm);
             let map_feature = |feat, threats: Bitboard, defenders: Bitboard| {
-                //2 * 768 * usize::from(defenders.contains(sq)) + 768 * usize::from(threats.contains(sq)) + feat
-                feat
+                2 * 768 * usize::from(defenders.contains(sq)) + 768 * usize::from(threats.contains(sq)) + feat
+                //feat
             };
             //let stm_feat = [0, 384][perspective_color] + 64 * usize::from(piece) + usize::from(sq);
             //let xstm_feat = [384, 0][perspective_color] + 64 * usize::from(piece) + usize::from(sq.flip_vertical());
@@ -159,7 +155,7 @@ impl Board {
                 } else {
                     usize::from(sq.flip_vertical())
                 };
-            dbg!(piece as usize, color as usize, sq.0, stm_feat, xstm_feat);
+            //dbg!(piece as usize, color as usize, sq.0, stm_feat, xstm_feat);
             s.push(map_feature(stm_feat, threats, defenders));
             xs.push(map_feature(xstm_feat, defenders, threats));
         }
