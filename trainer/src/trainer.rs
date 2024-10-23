@@ -19,7 +19,7 @@ pub fn train() {
         .add_layer(1)
         .build();
 
-    trainer.load_from_checkpoint("/home/jeff/imm-cee-tee-ess/trainer/checkpoints/threats-250/");
+    //trainer.load_from_checkpoint("/home/jeff/imm-cee-tee-ess/trainer/checkpoints/threats-250/");
 
     let schedule = TrainingSchedule {
         net_id: "threats".to_string(),
@@ -60,7 +60,7 @@ pub fn train() {
         "/home/jeff/chess-data/shuffled-test80-jan2023-16tb7p-filter-v6-sk20.min-mar2023.bin",
     ]);
 
-    //trainer.run(&schedule, &settings, &data_loader);
+    trainer.run(&schedule, &settings, &data_loader);
 
     for fen in [
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",

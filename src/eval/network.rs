@@ -22,42 +22,43 @@ pub(super) struct Layer<const M: usize, const N: usize, T> {
 impl<const M: usize, const N: usize> Layer<M, N, f32> {
     fn transform(&self, board: &Board) -> [[f32; N]; 2] {
         let mut output = [self.bias; 2];
-        for view in Color::iter() {
-            let mut threats = board.threats(!view);
-            let mut defenders = board.threats(view);
-            if view == Color::Black {
-                threats = threats.flip_vertical();
-                defenders = defenders.flip_vertical();
-            }
-            let mut features: ArrayVec<usize, 32> = ArrayVec::new();
-            for sq in board.occupancies() {
-                let p = board.piece_at(sq);
+        let mut stm_feats = ArrayVec::<usize, 32>::new();
+        let mut xstm_feats = ArrayVec::<usize, 32>::new();
 
-                features.push({
-                    const COLOR_OFFSET: usize = 64 * NUM_PIECES;
-                    const PIECE_OFFSET: usize = 64;
+        let threats = board.threats(!board.stm);
+        let defenders = board.threats(board.stm);
+        for sq in board.occupancies() {
+            let piece = board.piece_at(sq);
+            let is_opp = piece.color() != board.stm;
+            let map_feature = |feat, threats: Bitboard, defenders: Bitboard| {
+                2 * 768 * usize::from(defenders.contains(sq)) + 768 * usize::from(threats.contains(sq)) + feat
+            };
 
-                    let map_feature = |feat| {
-                        2 * 768 * usize::from(defenders.contains(sq)) + 768 * usize::from(threats.contains(sq)) + feat
-                    };
-
-                    match view {
-                        Color::White => map_feature(
-                            usize::from(p.color()) * COLOR_OFFSET
-                                + usize::from(p.name()) * PIECE_OFFSET
-                                + usize::from(sq),
-                        ),
-                        Color::Black => map_feature(
-                            usize::from(!p.color()) * COLOR_OFFSET
-                                + usize::from(p.name()) * PIECE_OFFSET
-                                + usize::from(sq.flip_vertical()),
-                        ),
-                    }
-                });
-            }
-            f32_update(&mut output[view], &features, &[]);
+            let stm_feat = 384 * usize::from(is_opp)
+                + 64 * usize::from(piece.name())
+                + if board.stm == Color::White {
+                    usize::from(sq)
+                } else {
+                    usize::from(sq.flip_vertical())
+                };
+            let xstm_feat = 384 * usize::from(!is_opp)
+                + 64 * usize::from(piece.name())
+                + if board.stm == Color::Black {
+                    usize::from(sq)
+                } else {
+                    usize::from(sq.flip_vertical())
+                };
+            stm_feats.push(map_feature(stm_feat, threats, defenders));
+            xstm_feats.push(map_feature(xstm_feat, defenders, threats));
         }
 
+        if board.stm == Color::White {
+            f32_update(&mut output[Color::White], &stm_feats, &[]);
+            f32_update(&mut output[Color::Black], &xstm_feats, &[]);
+        } else {
+            f32_update(&mut output[Color::Black], &stm_feats, &[]);
+            f32_update(&mut output[Color::White], &xstm_feats, &[]);
+        }
         output
     }
 }
@@ -122,46 +123,6 @@ impl Board {
     pub fn i32_eval(&self) -> i32 {
         let raw = self.raw_evaluate();
         raw * self.mat_scale() / 1024
-    }
-
-    pub fn features(&self) -> (Vec<usize>, Vec<usize>) {
-        let mut s = vec![];
-        let mut xs = vec![];
-
-        let threats = self.threats(!self.stm);
-        let defenders = self.threats(self.stm);
-        for sq in self.occupancies() {
-            let piece = self.piece_at(sq).name();
-            let color = self.piece_at(sq).color();
-            let perspective_color = usize::from(color != self.stm);
-            let map_feature = |feat, threats: Bitboard, defenders: Bitboard| {
-                2 * 768 * usize::from(defenders.contains(sq)) + 768 * usize::from(threats.contains(sq)) + feat
-                //feat
-            };
-            //let stm_feat = [0, 384][perspective_color] + 64 * usize::from(piece) + usize::from(sq);
-            //let xstm_feat = [384, 0][perspective_color] + 64 * usize::from(piece) + usize::from(sq.flip_vertical());
-
-            let stm_feat = [0, 384][perspective_color]
-                + 64 * usize::from(piece)
-                + if self.stm == Color::White {
-                    usize::from(sq)
-                } else {
-                    usize::from(sq.flip_vertical())
-                };
-            let xstm_feat = [384, 0][perspective_color]
-                + 64 * usize::from(piece)
-                + if self.stm == Color::Black {
-                    usize::from(sq)
-                } else {
-                    usize::from(sq.flip_vertical())
-                };
-            //dbg!(piece as usize, color as usize, sq.0, stm_feat, xstm_feat);
-            s.push(map_feature(stm_feat, threats, defenders));
-            xs.push(map_feature(xstm_feat, defenders, threats));
-        }
-        s.sort();
-        xs.sort();
-        (s, xs)
     }
 }
 

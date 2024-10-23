@@ -44,5 +44,5 @@ fn main() {
         assert_eq!(xstm, board_xstm);
     }
 
-    //train();
+    train();
 }
