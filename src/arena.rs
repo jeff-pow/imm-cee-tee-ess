@@ -363,7 +363,8 @@ impl Arena {
             );
         }
         // TODO: Display stats if not in UCI mode, and add output if bestmove changes or every few nodes idk
-        if report && PRETTY_PRINT.load(Ordering::Relaxed) {
+        //       Also do tree reuse
+        if PRETTY_PRINT.load(Ordering::Relaxed) && report {
             self.display_stats();
         }
 
