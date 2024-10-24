@@ -1,5 +1,4 @@
 use crate::arena::Arena;
-use crate::uci::PRETTY_PRINT;
 use crate::{historized_board::HistorizedBoard, search_type::SearchType};
 use std::{sync::atomic::AtomicBool, time::Instant};
 
