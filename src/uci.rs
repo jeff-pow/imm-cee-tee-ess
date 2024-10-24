@@ -52,7 +52,7 @@ pub fn main_loop() -> ! {
                 "{} cp, {} wdl, {}",
                 board.i32_eval(),
                 board.wdl_eval(),
-                board.board().asdf_eval()
+                board.board().float_eval()
             ),
             "position" => board = position_command(&input),
             "d" => {

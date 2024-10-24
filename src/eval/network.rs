@@ -16,6 +16,8 @@ pub(super) struct Layer<const M: usize, const N: usize, T> {
 }
 
 impl<const M: usize, const N: usize> Layer<M, N, f32> {
+    /// This function returns transformed feature vectors in the order [stm, nstm] instead of the commonly seen
+    /// [Color::White, Color::Black]. This simplifies the calculation of which weights to use in the next function call.
     fn transform(&self, board: &Board) -> [[f32; N]; 2] {
         let mut output = [self.bias; 2];
         let mut stm_feats = ArrayVec::<usize, 32>::new();
@@ -48,13 +50,8 @@ impl<const M: usize, const N: usize> Layer<M, N, f32> {
             xstm_feats.push(map_feature(xstm_feat, defenders, threats));
         }
 
-        if board.stm == Color::White {
-            f32_update(&mut output[Color::White], &stm_feats, &[]);
-            f32_update(&mut output[Color::Black], &xstm_feats, &[]);
-        } else {
-            f32_update(&mut output[Color::Black], &stm_feats, &[]);
-            f32_update(&mut output[Color::White], &xstm_feats, &[]);
-        }
+        f32_update(&mut output[0], &stm_feats, &[]);
+        f32_update(&mut output[1], &xstm_feats, &[]);
         output
     }
 }
@@ -79,20 +76,14 @@ pub(super) struct PerspectiveLayer<const M: usize, const N: usize, T> {
 }
 
 impl<const M: usize, const N: usize> PerspectiveLayer<M, N, f32> {
-    fn forward(&self, input: [[f32; M]; 2], stm: Color) -> [f32; N] {
+    fn forward(&self, input: [[f32; M]; 2]) -> [f32; N] {
         let mut output = self.bias;
 
-        let (us, them) = (&input[stm], &input[!stm]);
-
-        for (&i, col) in us.iter().zip(self.weights[0].iter()) {
-            for (o, c) in output.iter_mut().zip(col.iter()) {
-                *o += c * screlu(i);
-            }
-        }
-
-        for (&i, col) in them.iter().zip(self.weights[1].iter()) {
-            for (o, c) in output.iter_mut().zip(col.iter()) {
-                *o += c * screlu(i);
+        for (input, weights) in input.iter().zip(self.weights.iter()) {
+            for (&i, col) in input.iter().zip(weights.iter()) {
+                for (o, c) in output.iter_mut().zip(col.iter()) {
+                    *o += c * screlu(i);
+                }
             }
         }
 
@@ -112,15 +103,15 @@ pub struct Network {
 impl Board {
     pub fn raw_evaluate(&self) -> i32 {
         let ft = NET.ft.transform(self);
-        let l1 = NET.l1.forward(ft, self.stm);
+        let l1 = NET.l1.forward(ft);
         let l2 = NET.l2.forward(l1);
         let l3 = NET.l3.forward(l2);
         (l3[0] * SCALE as f32) as i32
     }
 
-    pub fn asdf_eval(&self) -> f32 {
+    pub fn float_eval(&self) -> f32 {
         let ft = NET.ft.transform(self);
-        let l1 = NET.l1.forward(ft, self.stm);
+        let l1 = NET.l1.forward(ft);
         let l2 = NET.l2.forward(l1);
         let l3 = NET.l3.forward(l2);
         l3[0] * SCALE as f32
