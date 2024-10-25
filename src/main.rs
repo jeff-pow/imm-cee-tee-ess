@@ -17,16 +17,3 @@ fn main() {
         imm_cee_tee_ess::main_loop();
     }
 }
-
-//fn write_quantized() {
-//    static UNQUANTIZED: UnquantizedNetwork = unsafe { std::mem::transmute(*include_bytes!("../bins/raw.bin")) };
-//    let quantized = UNQUANTIZED.quantize();
-//
-//    let mut f = File::create("threats.net").unwrap();
-//    unsafe {
-//        let ptr: *const Network = quantized.as_ref();
-//        let slice_ptr: *const u8 = std::mem::transmute(ptr);
-//        let slice = std::slice::from_raw_parts(slice_ptr, std::mem::size_of::<Network>());
-//        f.write_all(slice).unwrap();
-//    }
-//}

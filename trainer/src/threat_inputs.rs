@@ -75,7 +75,6 @@ impl Iterator for ThreatIter {
 
             let stm_feat = [0, 384][c] + 64 * p + sq;
             let xstm_feat = [384, 0][c] + 64 * p + (sq ^ 56);
-            //dbg!(p, c, sq, stm_feat, xstm_feat);
 
             (
                 map_feature(stm_feat, self.threats, self.defenders),
