@@ -10,7 +10,11 @@ pub fn train() {
         .optimiser(optimiser::AdamW)
         .input(ThreatInput)
         .output_buckets(outputs::Single)
-        .feature_transformer(768)
+        .feature_transformer(256)
+        .activate(Activation::SCReLU)
+        .add_layer(16)
+        .activate(Activation::SCReLU)
+        .add_layer(16)
         .activate(Activation::SCReLU)
         .add_layer(16)
         .activate(Activation::SCReLU)
@@ -33,7 +37,7 @@ pub fn train() {
         wdl_scheduler: wdl::ConstantWDL { value: 0.75 },
         lr_scheduler: lr::StepLR {
             start: 0.001,
-            gamma: 0.3,
+            gamma: 0.2,
             step: 50,
         },
         save_rate: 10,
