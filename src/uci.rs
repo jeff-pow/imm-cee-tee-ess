@@ -49,10 +49,10 @@ pub fn main_loop() -> ! {
                 halt.store(false, Ordering::Relaxed);
             }
             "eval" => println!(
-                "{} cp, {} wdl, {}",
-                board.i32_eval(),
-                board.wdl_eval(),
-                board.board().float_eval()
+                "Raw eval: {:.3}\nEval post scaling: {} cp\nWDL: {:.5}",
+                board.raw_eval(),
+                board.scaled_eval(),
+                board.wdl(),
             ),
             "position" => board = position_command(&input),
             "d" => {

@@ -193,8 +193,8 @@ impl Arena {
         );
     }
 
-    fn evaluate(&mut self, ptr: usize, board: &HistorizedBoard) -> f32 {
-        self[ptr].evaluate().unwrap_or_else(|| board.wdl_eval())
+    fn evaluate(&self, ptr: usize, board: &HistorizedBoard) -> f32 {
+        self[ptr].evaluate().unwrap_or_else(|| board.wdl())
     }
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
@@ -364,7 +364,7 @@ impl Arena {
         }
         // TODO: Display stats if not in UCI mode, and add output if bestmove changes or every few nodes idk
         //       Also do tree reuse
-        if PRETTY_PRINT.load(Ordering::Relaxed) && report {
+        if report && PRETTY_PRINT.load(Ordering::Relaxed) {
             self.display_stats();
         }
 

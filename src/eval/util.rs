@@ -39,10 +39,10 @@ use super::{L1_SIZE, NET};
 //}
 
 pub fn f32_update(acc: &mut [f32], adds: &[usize], subs: &[usize]) {
-    assert_eq!(acc.len(), L1_SIZE);
     const REGISTERS: usize = 8;
     const ELEMENTS_PER_LOOP: usize = REGISTERS * 256 / 32;
     const _: () = assert!(L1_SIZE % ELEMENTS_PER_LOOP == 0);
+    assert_eq!(acc.len(), L1_SIZE);
 
     let mut regs = [0f32; ELEMENTS_PER_LOOP];
 

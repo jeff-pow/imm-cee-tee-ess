@@ -3,10 +3,9 @@ use super::{util::f32_update, INPUT_SIZE, L1_SIZE, NET};
 use crate::{
     board::Board,
     types::{bitboard::Bitboard, pieces::Color},
+    value::SCALE,
 };
 use arrayvec::ArrayVec;
-
-pub(super) const SCALE: i32 = 400;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -17,7 +16,7 @@ pub(super) struct Layer<const M: usize, const N: usize, T> {
 
 impl<const M: usize, const N: usize> Layer<M, N, f32> {
     /// This function returns transformed feature vectors in the order [stm, nstm] instead of the commonly seen
-    /// [Color::White, Color::Black]. This simplifies the calculation of which weights to use in the next function call.
+    /// [`Color::White`, `Color::Black`]. This simplifies the calculation of which weights to use in the next function call.
     fn transform(&self, board: &Board) -> [[f32; N]; 2] {
         let mut output = [self.bias; 2];
         let mut stm_feats = ArrayVec::<usize, 32>::new();
@@ -103,29 +102,19 @@ pub struct Network {
 }
 
 impl Board {
-    pub fn raw_evaluate(&self) -> i32 {
+    pub fn raw_eval(&self) -> f32 {
         let ft = NET.ft.transform(self);
         let l1 = NET.l1.forward(ft);
         let l2 = NET.l2.forward(l1);
         let l3 = NET.l3.forward(l2);
         let l4 = NET.l4.forward(l3);
         let l5 = NET.l5.forward(l4);
-        (l5[0] * SCALE as f32) as i32
-    }
-
-    pub fn float_eval(&self) -> f32 {
-        let ft = NET.ft.transform(self);
-        let l1 = NET.l1.forward(ft);
-        let l2 = NET.l2.forward(l1);
-        let l3 = NET.l3.forward(l2);
-        let l4 = NET.l4.forward(l3);
-        let l5 = NET.l5.forward(l4);
-        l5[0] * SCALE as f32
+        l5[0] * SCALE
     }
 
     /// Credit to viridithas for these values and concepts
-    pub fn i32_eval(&self) -> i32 {
-        let raw = self.raw_evaluate();
+    pub fn scaled_eval(&self) -> i32 {
+        let raw = self.raw_eval() as i32;
         raw * self.mat_scale() / 1024
     }
 }
