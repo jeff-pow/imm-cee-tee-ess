@@ -20,15 +20,13 @@ pub struct Arena {
     depth: u64,
     nodes: u64,
 
+    root: usize,
     root_visits: i32,
     root_total_score: f32,
 
     lru_head: usize,
     lru_tail: usize,
 }
-
-/// Root node will always live at the first slot and never be part of the LRU removal cache, so it can never get removed.
-const ROOT_NODE_IDX: usize = 0;
 
 impl Arena {
     pub fn new(mb: f32, report: bool) -> Self {
@@ -52,6 +50,7 @@ impl Arena {
             hash_table,
             root_visits: 0,
             root_total_score: 0.,
+            root: usize::MAX,
             depth: 0,
             nodes: 0,
             lru_head: usize::MAX,
@@ -64,12 +63,12 @@ impl Arena {
     /// Bro we GOTTA call this function before returning an arena or it's gonna be BUSTED
     fn create_linked_list(&mut self) {
         let cap = self.node_list.len();
-        for i in 2..cap - 1 {
+        for i in 1..cap - 1 {
             self.node_list[i].set_next(Some(i + 1));
             self.node_list[i].set_prev(Some(i - 1));
         }
-        self.node_list[1].set_next(Some(2));
-        self.lru_head = 1;
+        self.node_list[0].set_next(Some(2));
+        self.lru_head = 0;
         self.node_list[cap - 1].set_prev(Some(cap - 2));
         self.lru_tail = cap - 1;
     }
@@ -78,6 +77,7 @@ impl Arena {
         self.node_list.iter_mut().for_each(|n| *n = Node::default());
         self.create_linked_list();
         self.hash_table.clear();
+        self.root = usize::MAX;
         self.root_visits = 0;
         self.root_total_score = 0.;
         self.depth = 0;
@@ -93,19 +93,7 @@ impl Arena {
         idx
     }
 
-    #[expect(unused)]
-    fn parent_edge(&self, idx: usize) -> &Edge {
-        &self[self[idx].parent().unwrap()].edges()[self[idx].parent_edge_idx()]
-    }
-
-    #[expect(unused)]
-    fn parent_edge_mut(&mut self, idx: usize) -> &mut Edge {
-        let parent = self[idx].parent().unwrap();
-        let child_idx = self[idx].parent_edge_idx();
-        &mut self[parent].edges_mut()[child_idx]
-    }
-
-    fn try_parent_edge_mut(&mut self, idx: usize) -> Option<&mut Edge> {
+    fn parent_edge_mut(&mut self, idx: usize) -> Option<&mut Edge> {
         let parent = self[idx].parent()?;
         let idx = self[idx].parent_edge_idx();
         self[parent].edges_mut().get_mut(idx)
@@ -121,20 +109,19 @@ impl Arena {
 
     fn remove_lru_node(&mut self) -> usize {
         let tail = self.lru_tail;
-        assert!(tail != ROOT_NODE_IDX);
+        assert!(tail != self.root);
         let prev = self[tail].prev().expect("What");
         self[prev].set_next(None);
         self.lru_tail = prev;
         // Some nodes need to tell their parents they don't exist anymore, but only nodes that
         // have actually been initialized
-        if let Some(parent) = self.try_parent_edge_mut(tail) {
+        if let Some(parent) = self.parent_edge_mut(tail) {
             parent.set_child(None);
         }
         tail
     }
 
     fn remove_arbitrary_node(&mut self, idx: usize) {
-        assert!(idx != ROOT_NODE_IDX);
         let prev = self[idx].prev();
         let next = self[idx].next();
 
@@ -155,8 +142,6 @@ impl Arena {
     }
 
     fn insert_at_head(&mut self, idx: usize) {
-        assert!(idx != ROOT_NODE_IDX);
-
         let old_head = self.lru_head;
         self[idx].set_next(Some(old_head));
         self[old_head].set_prev(Some(idx));
@@ -167,10 +152,6 @@ impl Arena {
     }
 
     fn move_to_front(&mut self, idx: usize) {
-        // Return early to prevent root from getting put into node list
-        if ROOT_NODE_IDX == idx {
-            return;
-        }
         self.remove_arbitrary_node(idx);
         self.insert_at_head(idx);
     }
@@ -188,8 +169,7 @@ impl Arena {
                 .legal_moves()
                 .into_iter()
                 .map(|m| Edge::new(m, None))
-                .collect::<Vec<_>>()
-                .into_boxed_slice(),
+                .collect::<Box<[_]>>(),
         );
     }
 
@@ -251,7 +231,7 @@ impl Arena {
     }
 
     fn display_stats(&self) {
-        for edge in self[ROOT_NODE_IDX].edges() {
+        for edge in self[self.root].edges() {
             println!("{} - n: {:8}  -  Q: {}", edge.m(), edge.visits(), edge.q());
         }
     }
@@ -310,7 +290,7 @@ impl Arena {
         search_type: SearchType,
         report: bool,
     ) -> Move {
-        self[ROOT_NODE_IDX] = Node::new(board.game_state(), board.hash(), None, u32::MAX as usize);
+        self.root = self.insert(board, None, usize::MAX);
 
         self.root_visits = 0;
         self.root_total_score = 0.;
@@ -324,9 +304,7 @@ impl Arena {
         loop {
             self.depth = 0;
 
-            let mut b = board.clone();
-
-            let u = self.playout(ROOT_NODE_IDX, &mut b, self.root_visits);
+            let u = self.playout(self.root, &mut board.clone(), self.root_visits);
             self.root_total_score += u;
             self.root_visits += 1;
 
@@ -337,13 +315,7 @@ impl Arena {
 
             if total_depth / self.nodes > running_avg_depth && report {
                 running_avg_depth = total_depth / self.nodes;
-                self.print_uci(
-                    self.nodes,
-                    search_start,
-                    max_depth,
-                    total_depth / self.nodes,
-                    ROOT_NODE_IDX,
-                );
+                self.print_uci(self.nodes, search_start, max_depth, total_depth / self.nodes, self.root);
             }
 
             if halt.load(Ordering::Relaxed)
@@ -354,13 +326,7 @@ impl Arena {
         }
 
         if report {
-            self.print_uci(
-                self.nodes,
-                search_start,
-                max_depth,
-                total_depth / self.nodes,
-                ROOT_NODE_IDX,
-            );
+            self.print_uci(self.nodes, search_start, max_depth, total_depth / self.nodes, self.root);
         }
         // TODO: Display stats if not in UCI mode, and add output if bestmove changes or every few nodes idk
         //       Also do tree reuse
@@ -368,7 +334,7 @@ impl Arena {
             self.display_stats();
         }
 
-        self.final_move_selection(ROOT_NODE_IDX).unwrap().m()
+        self.final_move_selection(self.root).unwrap().m()
     }
 }
 
