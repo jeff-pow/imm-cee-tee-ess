@@ -48,7 +48,12 @@ pub fn main_loop() -> ! {
             "ucinewgame" => {
                 halt.store(false, Ordering::Relaxed);
             }
-            "eval" => println!("{}", board.scaled_eval()),
+            "eval" => println!(
+                "Raw eval: {:.3}\nEval post scaling: {} cp\nWDL: {:.5}",
+                board.raw_eval(),
+                board.scaled_eval(),
+                board.wdl(),
+            ),
             "position" => board = position_command(&input),
             "d" => {
                 dbg!(&board.board());
@@ -60,7 +65,7 @@ pub fn main_loop() -> ! {
             "bench" => bench(),
             "go" => handle_go(&mut arena, &input, &board, &mut msg, &halt),
             "perft" => {
-                perft(&board.board(), input[1].parse().unwrap());
+                perft(board.board(), input[1].parse().unwrap());
             }
             "quit" => {
                 exit(0);
@@ -110,7 +115,7 @@ fn position_command(input: &[&str]) -> HistorizedBoard {
 
 fn parse_moves(moves: &[&str], board: &mut HistorizedBoard) {
     for str in moves {
-        let m = Move::from_san(str, &board.board());
+        let m = Move::from_san(str, board.board());
         board.make_move(m);
     }
 }

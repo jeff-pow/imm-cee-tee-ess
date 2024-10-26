@@ -100,7 +100,7 @@ pub fn rook_attacks(sq: Square, occupied: Bitboard) -> Bitboard {
     }
 }
 
-/// <https://analog-hors.github.io/site/magic-bitboards/>
+// <https://analog-hors.github.io/site/magic-bitboards/>
 // impl Magics {
 //     pub fn bishop_attacks(&self, occupied: Bitboard, sq: Square) -> Bitboard {
 //         let magic = &self.bishop_magics[sq];
@@ -162,7 +162,7 @@ pub fn rook_attacks(sq: Square, occupied: Bitboard) -> Bitboard {
 //     a
 // }
 
-/// Extracts move bitboards using known constants
+// Extracts move bitboards using known constants
 // fn create_table(sq: Square, deltas: [Direction; 4], magics: &[Magi]) -> Vec<Bitboard> {
 //     let magic_entry =
 //         if deltas[0] == North {  } else { BISHOP_MAGICS[sq] };

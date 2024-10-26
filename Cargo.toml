@@ -17,4 +17,6 @@ panic = "abort"
 [profile.dev]
 overflow-checks = false
 
-
+[workspace]
+members = ["trainer"]
+resolver = "2"

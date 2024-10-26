@@ -7,8 +7,8 @@ else
 endif
 
 openbench:
-	cargo rustc --release -- -C target-cpu=native --emit link=$(NAME)
+	cargo rustc --bin imm-cee-tee-ess --release -- -C target-cpu=native --emit link=$(NAME)
 
 bench:
-	cargo rustc --release -- -C target-cpu=native --emit link=$(NAME)
+	cargo rustc --bin imm-cee-tee-ess --release -- -C target-cpu=native --emit link=$(NAME)
 	./$(NAME) bench
