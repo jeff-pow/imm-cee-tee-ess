@@ -22,7 +22,6 @@ pub struct Arena {
     previous_board: Option<HistorizedBoard>,
     root: usize,
 
-    root: usize,
     root_visits: i32,
     root_total_score: f32,
 
@@ -53,7 +52,6 @@ impl Arena {
             root: usize::MAX,
             root_visits: 0,
             root_total_score: 0.,
-            root: usize::MAX,
             depth: 0,
             nodes: 0,
             lru_head: usize::MAX,
