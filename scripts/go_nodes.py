@@ -36,7 +36,7 @@ for idx, node in enumerate(game.mainline()):
         board.push(node.move)
 
 # Perform one final move from the engine after the game ends
-result = base.play(board, chess.engine.Limit(time=0.01))
+result = base.play(board, chess.engine.Limit(time=5.01))
 print(result)
 
 base.quit()

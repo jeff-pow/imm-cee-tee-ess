@@ -103,16 +103,7 @@ impl Node {
         self.edge_idx.into()
     }
 
-    pub fn copy_root_from(&mut self, old_root: Self) {
-        self.game_state = old_root.game_state;
-        self.edges = old_root.edges;
-        self.hash = old_root.hash;
-    }
-
-    pub fn reset(&mut self) {
-        self.game_state = GameState::Ongoing;
-        self.edges = [].into();
-        self.hash = 0;
+    pub fn make_root(&mut self) {
         self.parent = None;
         self.edge_idx = u8::MAX;
     }
