@@ -4,12 +4,14 @@ use crate::{board::Board, chess_move::Move, movegen::MoveList, node::GameState, 
 pub struct HistorizedBoard {
     board: Board,
     hashes: Vec<u64>,
+    moves: Vec<Move>,
 }
 
 impl HistorizedBoard {
     pub fn make_move(&mut self, m: Move) {
         self.board.make_move(m);
         self.hashes.push(self.board.zobrist_hash);
+        self.moves.push(m);
     }
 
     pub fn legal_moves(&self) -> MoveList {
@@ -82,8 +84,8 @@ impl HistorizedBoard {
         self.board = board;
     }
 
-    pub fn hashes(&self) -> &[u64] {
-        &self.hashes
+    pub fn moves(&self) -> &[Move] {
+        &self.moves
     }
 }
 
@@ -91,7 +93,8 @@ impl From<&str> for HistorizedBoard {
     fn from(value: &str) -> Self {
         Self {
             board: Board::from_fen(value),
-            hashes: vec![],
+            hashes: Vec::with_capacity(128),
+            moves: Vec::with_capacity(128),
         }
     }
 }

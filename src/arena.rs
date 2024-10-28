@@ -257,17 +257,13 @@ impl Arena {
         if self.root == usize::MAX {
             return None;
         }
-        if board.hashes().get(previous_board.hashes().len() - 1) != previous_board.hashes().last() {
+        if board.moves().get(previous_board.moves().len() - 1) != previous_board.moves().last() {
             return None;
         }
-        let hash_diff = &board.hashes()[previous_board.hashes().len()..];
+        let move_diff = &board.moves()[previous_board.moves().len()..];
         let mut ptr = self.root;
-        for &hash in hash_diff {
-            ptr = self[ptr]
-                .edges()
-                .iter()
-                .filter_map(Edge::child)
-                .find(|&child| self[child].hash() == hash)?;
+        for &m in move_diff {
+            ptr = self[ptr].edges().iter().find(|e| e.m() == m).and_then(Edge::child)?;
         }
 
         // Final sanity check to make sure that every edge at this position is a legal move.
