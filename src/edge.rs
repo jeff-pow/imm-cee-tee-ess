@@ -39,10 +39,6 @@ impl Edge {
         self.visits
     }
 
-    pub const fn total_score(&self) -> f32 {
-        self.total_score
-    }
-
     pub const fn child(&self) -> Option<usize> {
         self.child_ptr
     }

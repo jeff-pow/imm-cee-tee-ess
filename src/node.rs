@@ -63,10 +63,6 @@ impl Node {
         self.game_state == GameState::Ongoing && self.edges.is_empty()
     }
 
-    pub fn hash(&self) -> u64 {
-        self.hash
-    }
-
     pub const fn edges(&self) -> &[Edge] {
         &self.edges
     }

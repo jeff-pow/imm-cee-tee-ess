@@ -1,17 +1,24 @@
-use crate::{board::Board, chess_move::Move, movegen::MoveList, node::GameState, types::pieces::Color};
+use crate::{
+    board::Board,
+    chess_move::Move,
+    movegen::MoveList,
+    node::GameState,
+    types::pieces::{Color, Piece, PieceName},
+};
 
 #[derive(Clone, Default, Debug)]
 pub struct HistorizedBoard {
     board: Board,
     hashes: Vec<u64>,
-    moves: Vec<Move>,
 }
 
 impl HistorizedBoard {
     pub fn make_move(&mut self, m: Move) {
+        if self.board.piece_at(m.to()) != Piece::None || m.piece_moving(&self.board).name() == PieceName::Pawn {
+            self.hashes.clear();
+        }
         self.board.make_move(m);
         self.hashes.push(self.board.zobrist_hash);
-        self.moves.push(m);
     }
 
     pub fn legal_moves(&self) -> MoveList {
@@ -39,7 +46,6 @@ impl HistorizedBoard {
             return false;
         }
 
-        let mut reps = 2;
         for &hash in self
             .hashes
             .iter()
@@ -48,8 +54,7 @@ impl HistorizedBoard {
             .skip(1)
             .step_by(2)
         {
-            reps -= u32::from(hash == self.board.zobrist_hash);
-            if reps == 0 {
+            if hash == self.hash() {
                 return true;
             }
         }
@@ -83,10 +88,6 @@ impl HistorizedBoard {
     pub fn set_board(&mut self, board: Board) {
         self.board = board;
     }
-
-    pub fn moves(&self) -> &[Move] {
-        &self.moves
-    }
 }
 
 impl From<&str> for HistorizedBoard {
@@ -94,7 +95,6 @@ impl From<&str> for HistorizedBoard {
         Self {
             board: Board::from_fen(value),
             hashes: Vec::with_capacity(128),
-            moves: Vec::with_capacity(128),
         }
     }
 }

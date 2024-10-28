@@ -23,7 +23,6 @@ pub struct Arena {
     root: usize,
 
     root_visits: i32,
-    root_total_score: f32,
 
     lru_head: usize,
     lru_tail: usize,
@@ -51,7 +50,6 @@ impl Arena {
             hash_table,
             root: usize::MAX,
             root_visits: 0,
-            root_total_score: 0.,
             depth: 0,
             nodes: 0,
             lru_head: usize::MAX,
@@ -82,7 +80,6 @@ impl Arena {
         self.hash_table.clear();
         self.root = usize::MAX;
         self.root_visits = 0;
-        self.root_total_score = 0.;
         self.depth = 0;
         self.nodes = 0;
     }
@@ -100,17 +97,10 @@ impl Arena {
         Some(&self[self[idx].parent()?].edges()[self[idx].parent_edge_idx()])
     }
 
-    #[expect(unused)]
     fn parent_edge_mut(&mut self, idx: usize) -> Option<&mut Edge> {
         let parent = self[idx].parent()?;
         let child_idx = self[idx].parent_edge_idx();
         Some(&mut self[parent].edges_mut()[child_idx])
-    }
-
-    fn try_parent_edge_mut(&mut self, idx: usize) -> Option<&mut Edge> {
-        let parent = self[idx].parent()?;
-        let idx = self[idx].parent_edge_idx();
-        self[parent].edges_mut().get_mut(idx)
     }
 
     pub const fn nodes(&self) -> u64 {
@@ -251,9 +241,7 @@ impl Arena {
     }
 
     fn reuse_tree(&mut self, board: &HistorizedBoard) -> Option<usize> {
-        let Some(previous_board) = &self.previous_board else {
-            return None;
-        };
+        let previous_board = self.previous_board.as_ref()?;
         if self.root == usize::MAX {
             return None;
         }
@@ -338,22 +326,17 @@ impl Arena {
         if let Some(new_root) = self.reuse_tree(board) {
             if self[new_root].edges().is_empty() {
                 self.reset();
-                println!("info string tree not reused - empty edges");
+                self.expand(new_root, board);
             } else if new_root != self.root {
-                println!("info string tree reused");
+                self.root_visits = self.parent_edge(new_root).map(|e| e.visits()).unwrap_or(0);
                 self.parent_edge_mut(new_root).unwrap().set_child(None);
                 self[new_root].make_root();
                 self.root = new_root;
-
-                self.root_visits = self.parent_edge(new_root).map(|e| e.visits()).unwrap_or(0);
-                self.root_total_score = self.parent_edge(new_root).map(|e| e.total_score()).unwrap_or(0.);
             }
         } else {
-            println!("info string tree not reused - match not found");
             self.reset();
             self.root = self.insert(board, None, usize::MAX);
             self.root_visits = 0;
-            self.root_total_score = 0.;
         }
 
         let mut total_depth = 0;
@@ -363,8 +346,7 @@ impl Arena {
         loop {
             self.depth = 0;
 
-            let u = self.playout(self.root, &mut board.clone(), self.root_visits);
-            self.root_total_score += u;
+            let _ = self.playout(self.root, &mut board.clone(), self.root_visits);
             self.root_visits += 1;
 
             self.nodes += 1;
