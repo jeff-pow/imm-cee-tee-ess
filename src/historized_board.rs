@@ -98,3 +98,9 @@ impl From<&str> for HistorizedBoard {
         }
     }
 }
+
+impl PartialEq for HistorizedBoard {
+    fn eq(&self, other: &Self) -> bool {
+        self.board == other.board
+    }
+}

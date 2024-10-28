@@ -257,33 +257,26 @@ impl Arena {
         if self.root == usize::MAX {
             return None;
         }
-        if board.moves().get(previous_board.moves().len() - 1) != previous_board.moves().last() {
-            return None;
-        }
-        let move_diff = &board.moves()[previous_board.moves().len()..];
-        let mut ptr = self.root;
-        for &m in move_diff {
-            ptr = self[ptr]
+
+        for first_edge in self[self.root].edges().iter().filter(|e| e.child().is_some()) {
+            assert!(first_edge.child().is_some());
+            for second_edge in self[first_edge.child().unwrap()]
                 .edges()
                 .iter()
                 .filter(|e| e.child().is_some())
-                .find(|e| e.m() == m)
-                .and_then(Edge::child)?;
-        }
+            {
+                let mut temp_board = previous_board.clone();
 
-        // Final sanity check to make sure that every edge at this position is a legal move.
-        // Pretty sure that ptr could be the new root at this point.
-        let legal_moves = board.legal_moves();
-        if legal_moves.len() != self[ptr].edges().len() {
-            return None;
-        }
-        for m in self[ptr].edges().iter().map(|e| e.m()) {
-            if !legal_moves.contains(&m) {
-                return None;
+                temp_board.make_move(first_edge.m());
+                temp_board.make_move(second_edge.m());
+
+                if temp_board == *board {
+                    assert!(second_edge.child().is_some());
+                    return second_edge.child();
+                }
             }
         }
-
-        Some(ptr)
+        None
     }
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
