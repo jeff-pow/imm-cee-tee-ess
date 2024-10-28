@@ -263,7 +263,12 @@ impl Arena {
         let move_diff = &board.moves()[previous_board.moves().len()..];
         let mut ptr = self.root;
         for &m in move_diff {
-            ptr = self[ptr].edges().iter().find(|e| e.m() == m).and_then(Edge::child)?;
+            ptr = self[ptr]
+                .edges()
+                .iter()
+                .filter(|e| e.child().is_some())
+                .find(|e| e.m() == m)
+                .and_then(Edge::child)?;
         }
 
         // Final sanity check to make sure that every edge at this position is a legal move.
