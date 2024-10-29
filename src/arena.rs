@@ -173,7 +173,11 @@ impl Arena {
     }
 
     fn expand(&mut self, ptr: usize, board: &HistorizedBoard) {
-        assert!(self[ptr].edges().is_empty() && !self[ptr].is_terminal());
+        assert!(
+            self[ptr].edges().is_empty() && !self[ptr].is_terminal(),
+            "{:?}",
+            self[ptr]
+        );
         self[ptr].set_edges(
             board
                 .legal_moves()
@@ -332,14 +336,19 @@ impl Arena {
         if let Some(new_root) = self.reuse_tree(board) {
             if self[new_root].edges().is_empty() {
                 self.reset();
-                self.expand(new_root, board);
+                self.root = self.insert(board, None, usize::MAX);
+                println!("info string no edges");
             } else if new_root != self.root {
+                println!("info string reused");
                 self.root_visits = self.parent_edge(new_root).map(|e| e.visits()).unwrap_or(0);
                 self.parent_edge_mut(new_root).unwrap().set_child(None);
                 self[new_root].make_root();
                 self.root = new_root;
+            } else {
+                println!("info string else");
             }
         } else {
+            println!("info string not found");
             self.reset();
             self.root = self.insert(board, None, usize::MAX);
             self.root_visits = 0;
