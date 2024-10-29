@@ -99,6 +99,7 @@ impl Node {
         self.edge_idx.into()
     }
 
+    /// Remove parent node status
     pub fn make_root(&mut self) {
         self.parent = None;
         self.edge_idx = u8::MAX;

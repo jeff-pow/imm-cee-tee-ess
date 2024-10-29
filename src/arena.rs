@@ -341,7 +341,6 @@ impl Arena {
             } else if new_root != self.root {
                 println!("info string reused");
                 self.root_visits = self.parent_edge(new_root).map(|e| e.visits()).unwrap_or(0);
-                self.parent_edge_mut(new_root).unwrap().set_child(None);
                 self[new_root].make_root();
                 self.root = new_root;
             } else {
