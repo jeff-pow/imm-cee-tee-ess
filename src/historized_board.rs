@@ -26,7 +26,7 @@ impl HistorizedBoard {
     }
 
     pub fn game_state(&self) -> GameState {
-        if self.board.half_moves >= 100 || self.is_3x_repetition() {
+        if self.board.half_moves >= 100 || self.is_repetition() {
             return GameState::Draw;
         }
 
@@ -41,7 +41,7 @@ impl HistorizedBoard {
         }
     }
 
-    fn is_3x_repetition(&self) -> bool {
+    fn is_repetition(&self) -> bool {
         if self.hashes.len() < 6 {
             return false;
         }
