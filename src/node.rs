@@ -103,4 +103,8 @@ impl Node {
         self.parent = None;
         self.edge_idx = u8::MAX;
     }
+
+    pub fn set_game_state(&mut self, game_state: GameState) {
+        self.game_state = game_state;
+    }
 }

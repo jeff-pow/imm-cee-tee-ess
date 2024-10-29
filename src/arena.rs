@@ -1,6 +1,12 @@
 use crate::{
-    chess_move::Move, edge::Edge, hashtable::HashTable, historized_board::HistorizedBoard, node::Node,
-    search_type::SearchType, uci::PRETTY_PRINT, value::SCALE,
+    chess_move::Move,
+    edge::Edge,
+    hashtable::HashTable,
+    historized_board::HistorizedBoard,
+    node::{GameState, Node},
+    search_type::SearchType,
+    uci::PRETTY_PRINT,
+    value::SCALE,
 };
 use std::{
     f32::consts::SQRT_2,
@@ -338,6 +344,8 @@ impl Arena {
             self.root = self.insert(board, None, usize::MAX);
             self.root_visits = 0;
         }
+        let root = self.root;
+        self[root].set_game_state(GameState::Ongoing);
 
         let mut total_depth = 0;
         let mut max_depth = 0;
