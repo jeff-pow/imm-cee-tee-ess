@@ -46,7 +46,13 @@ impl HistorizedBoard {
             return false;
         }
 
-        for &hash in self.hashes.iter().rev().take(self.board.half_moves as usize + 1) {
+        for &hash in self
+            .hashes
+            .iter()
+            .rev()
+            .take(self.board.half_moves as usize + 1)
+            .skip(1)
+        {
             if hash == self.hash() {
                 return true;
             }
