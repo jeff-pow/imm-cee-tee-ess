@@ -215,7 +215,7 @@ impl Board {
     /// Returns true if a move was legal, and false if it was illegal.
     pub fn make_move(&mut self, m: Move) {
         let piece_moving = m.piece_moving(self);
-        assert_eq!(piece_moving, self.piece_at(m.from()));
+        assert_ne!(piece_moving, Piece::None, "{:?}\n{:?}", m, self);
         let capture = self.capture(m);
         self.remove_piece(m.to());
 

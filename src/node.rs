@@ -98,4 +98,14 @@ impl Node {
     pub fn parent_edge_idx(&self) -> usize {
         self.edge_idx.into()
     }
+
+    /// Remove parent node status
+    pub fn make_root(&mut self) {
+        self.parent = None;
+        self.edge_idx = u8::MAX;
+    }
+
+    pub fn set_game_state(&mut self, game_state: GameState) {
+        self.game_state = game_state;
+    }
 }

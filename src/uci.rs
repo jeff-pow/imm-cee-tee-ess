@@ -47,6 +47,7 @@ pub fn main_loop() -> ! {
             "isready" => println!("readyok"),
             "ucinewgame" => {
                 halt.store(false, Ordering::Relaxed);
+                arena.reset();
             }
             "eval" => println!(
                 "Raw eval: {:.3}\nEval post scaling: {} cp\nWDL: {:.5}",
@@ -181,7 +182,6 @@ pub fn handle_go(
         SearchType::Infinite
     };
 
-    arena.reset();
     thread::scope(|s| {
         s.spawn(|| {
             let m = arena.start_search(board, halt, search_type, true);

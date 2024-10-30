@@ -1,6 +1,12 @@
 use crate::{
-    chess_move::Move, edge::Edge, hashtable::HashTable, historized_board::HistorizedBoard, node::Node,
-    search_type::SearchType, uci::PRETTY_PRINT, value::SCALE,
+    chess_move::Move,
+    edge::Edge,
+    hashtable::HashTable,
+    historized_board::HistorizedBoard,
+    node::{GameState, Node},
+    search_type::SearchType,
+    uci::PRETTY_PRINT,
+    value::SCALE,
 };
 use std::{
     f32::consts::SQRT_2,
@@ -19,10 +25,10 @@ pub struct Arena {
     hash_table: HashTable,
     depth: u64,
     nodes: u64,
-
+    previous_board: Option<HistorizedBoard>,
     root: usize,
+
     root_visits: i32,
-    root_total_score: f32,
 
     lru_head: usize,
     lru_tail: usize,
@@ -48,13 +54,13 @@ impl Arena {
         let mut arena = Self {
             node_list: arena.into_boxed_slice(),
             hash_table,
-            root_visits: 0,
-            root_total_score: 0.,
             root: usize::MAX,
+            root_visits: 0,
             depth: 0,
             nodes: 0,
             lru_head: usize::MAX,
             lru_tail: usize::MAX,
+            previous_board: None,
         };
         arena.create_linked_list();
         arena
@@ -76,10 +82,10 @@ impl Arena {
     pub fn reset(&mut self) {
         self.node_list.iter_mut().for_each(|n| *n = Node::default());
         self.create_linked_list();
+        self.root = usize::MAX;
         self.hash_table.clear();
         self.root = usize::MAX;
         self.root_visits = 0;
-        self.root_total_score = 0.;
         self.depth = 0;
         self.nodes = 0;
     }
@@ -93,10 +99,14 @@ impl Arena {
         idx
     }
 
+    fn parent_edge(&self, idx: usize) -> Option<&Edge> {
+        Some(&self[self[idx].parent()?].edges()[self[idx].parent_edge_idx()])
+    }
+
     fn parent_edge_mut(&mut self, idx: usize) -> Option<&mut Edge> {
         let parent = self[idx].parent()?;
-        let idx = self[idx].parent_edge_idx();
-        self[parent].edges_mut().get_mut(idx)
+        let child_idx = self[idx].parent_edge_idx();
+        Some(&mut self[parent].edges_mut()[child_idx])
     }
 
     pub const fn nodes(&self) -> u64 {
@@ -163,7 +173,11 @@ impl Arena {
     }
 
     fn expand(&mut self, ptr: usize, board: &HistorizedBoard) {
-        assert!(self[ptr].edges().is_empty() && !self[ptr].is_terminal());
+        assert!(
+            self[ptr].edges().is_empty() && !self[ptr].is_terminal(),
+            "{:?}",
+            self[ptr]
+        );
         self[ptr].set_edges(
             board
                 .legal_moves()
@@ -236,6 +250,33 @@ impl Arena {
         }
     }
 
+    fn reuse_tree(&mut self, board: &HistorizedBoard) -> Option<usize> {
+        let previous_board = self.previous_board.as_ref()?;
+        if self.root == usize::MAX {
+            return None;
+        }
+
+        for first_edge in self[self.root].edges().iter().filter(|e| e.child().is_some()) {
+            assert!(first_edge.child().is_some());
+            for second_edge in self[first_edge.child().unwrap()]
+                .edges()
+                .iter()
+                .filter(|e| e.child().is_some())
+            {
+                let mut temp_board = previous_board.clone();
+
+                temp_board.make_move(first_edge.m());
+                temp_board.make_move(second_edge.m());
+
+                if temp_board == *board {
+                    assert!(second_edge.child().is_some());
+                    return second_edge.child();
+                }
+            }
+        }
+        None
+    }
+
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     /// Returns a usize indexing into the edge that should be selected next
     fn select_action(&self, ptr: usize, parent_edge_visits: i32) -> usize {
@@ -290,12 +331,29 @@ impl Arena {
         search_type: SearchType,
         report: bool,
     ) -> Move {
-        self.root = self.insert(board, None, usize::MAX);
-
-        self.root_visits = 0;
-        self.root_total_score = 0.;
-
         let search_start = Instant::now();
+
+        if let Some(new_root) = self.reuse_tree(board) {
+            if self[new_root].edges().is_empty() {
+                self.reset();
+                self.root = self.insert(board, None, usize::MAX);
+                println!("info string no edges");
+            } else if new_root != self.root {
+                println!("info string reused");
+                self.root_visits = self.parent_edge(new_root).map(|e| e.visits()).unwrap_or(0);
+                self[new_root].make_root();
+                self.root = new_root;
+            } else {
+                println!("info string else");
+            }
+        } else {
+            println!("info string not found");
+            self.reset();
+            self.root = self.insert(board, None, usize::MAX);
+            self.root_visits = 0;
+        }
+        let root = self.root;
+        self[root].set_game_state(GameState::Ongoing);
 
         let mut total_depth = 0;
         let mut max_depth = 0;
@@ -304,8 +362,7 @@ impl Arena {
         loop {
             self.depth = 0;
 
-            let u = self.playout(self.root, &mut board.clone(), self.root_visits);
-            self.root_total_score += u;
+            let _ = self.playout(self.root, &mut board.clone(), self.root_visits);
             self.root_visits += 1;
 
             self.nodes += 1;
@@ -333,6 +390,8 @@ impl Arena {
         if report && PRETTY_PRINT.load(Ordering::Relaxed) {
             self.display_stats();
         }
+
+        self.previous_board = Some(board.clone());
 
         self.final_move_selection(self.root).unwrap().m()
     }
