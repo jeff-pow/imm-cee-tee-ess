@@ -12,16 +12,16 @@ base.configure({"Threads": 1, "Hash": 32})
 
 # Determine which side the engine is playing
 if game.headers["White"] == "imm-cee-tee-ess-dev":
-    offset = 0  # Engine is White
+    offset = 0
 else:
-    offset = 1  # Engine is Black
+    offset = 1
 
 board = game.board()
 
 # Iterate over each move in the mainline of the game
 for idx, node in enumerate(game.mainline()):
     # Alternate between player's and engine's moves based on the offset
-    if (idx % 2) == offset:  # Engine's turn
+    if (idx % 2) == offset:
         comment = node.comment
         print(node.comment)
 
@@ -32,7 +32,7 @@ for idx, node in enumerate(game.mainline()):
         assert result.move == node.move, "Engine move does not match PGN move"
         board.push(result.move)
 
-    else:  # Opponent's turn, push PGN move
+    else:
         board.push(node.move)
 
 # Perform one final move from the engine after the game ends

@@ -18,7 +18,6 @@ use std::{
 };
 
 const CPUCT: f32 = SQRT_2;
-pub const FPU: f32 = 0.5;
 
 pub struct Arena {
     node_list: Box<[Node]>,
@@ -29,6 +28,7 @@ pub struct Arena {
     root: usize,
 
     root_visits: i32,
+    root_total_score: f32,
 
     lru_head: usize,
     lru_tail: usize,
@@ -56,6 +56,7 @@ impl Arena {
             hash_table,
             root: usize::MAX,
             root_visits: 0,
+            root_total_score: 0.,
             depth: 0,
             nodes: 0,
             lru_head: usize::MAX,
@@ -86,6 +87,7 @@ impl Arena {
         self.hash_table.clear();
         self.root = usize::MAX;
         self.root_visits = 0;
+        self.root_total_score = 0.;
         self.depth = 0;
         self.nodes = 0;
     }
@@ -193,7 +195,7 @@ impl Arena {
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     // Thanks lightvector! :)
-    fn playout(&mut self, ptr: usize, board: &mut HistorizedBoard, parent_visits: i32) -> f32 {
+    fn playout(&mut self, ptr: usize, board: &mut HistorizedBoard, parent_visits: i32, parent_total_score: f32) -> f32 {
         self.move_to_front(ptr);
         // Simulate
         let u = if self[ptr].is_terminal() || parent_visits == 0 {
@@ -206,7 +208,7 @@ impl Arena {
             }
 
             // Select
-            let edge_idx = self.select_action(ptr, parent_visits);
+            let edge_idx = self.select_action(ptr, parent_visits, parent_total_score);
 
             board.make_move(self[ptr].edges()[edge_idx].m());
 
@@ -216,7 +218,12 @@ impl Arena {
                 child_ptr
             });
 
-            let u = self.playout(child_ptr, board, self[ptr].edges()[edge_idx].visits());
+            let u = self.playout(
+                child_ptr,
+                board,
+                self[ptr].edges()[edge_idx].visits(),
+                self[ptr].edges()[edge_idx].total_score(),
+            );
 
             // Backpropagation
             self[ptr].edges_mut()[edge_idx].update_stats(u);
@@ -279,14 +286,18 @@ impl Arena {
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     /// Returns a usize indexing into the edge that should be selected next
-    fn select_action(&self, ptr: usize, parent_edge_visits: i32) -> usize {
+    fn select_action(&self, ptr: usize, parent_edge_visits: i32, parent_total_score: f32) -> usize {
         assert!(!self[ptr].edges().is_empty());
 
         self[ptr]
             .edges()
             .iter()
             .map(|child| {
-                let q = if child.visits() == 0 { FPU } else { child.q() };
+                let q = if child.visits() == 0 {
+                    1. - (parent_total_score / parent_edge_visits as f32)
+                } else {
+                    child.q()
+                };
                 // Try to assume an even probability since we don't have a policy yet. No
                 // clue if this is a sound idea or not.
                 let policy = 1. / self[ptr].edges().len() as f32;
@@ -341,6 +352,7 @@ impl Arena {
             } else if new_root != self.root {
                 println!("info string reused");
                 self.root_visits = self.parent_edge(new_root).map(|e| e.visits()).unwrap_or(0);
+                self.root_total_score = self.parent_edge(new_root).map(|e| e.total_score()).unwrap_or(0.);
                 self[new_root].make_root();
                 self.root = new_root;
             } else {
@@ -350,7 +362,6 @@ impl Arena {
             println!("info string not found");
             self.reset();
             self.root = self.insert(board, None, usize::MAX);
-            self.root_visits = 0;
         }
         let root = self.root;
         self[root].set_game_state(GameState::Ongoing);
@@ -362,8 +373,9 @@ impl Arena {
         loop {
             self.depth = 0;
 
-            let _ = self.playout(self.root, &mut board.clone(), self.root_visits);
+            let u = self.playout(self.root, &mut board.clone(), self.root_visits, self.root_total_score);
             self.root_visits += 1;
+            self.root_total_score += u;
 
             self.nodes += 1;
             max_depth = self.depth.max(max_depth);
