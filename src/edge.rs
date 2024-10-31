@@ -1,15 +1,15 @@
-use crate::chess_move::Move;
+use crate::{arena::ArenaIndex, chess_move::Move};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Edge {
     m: Move,
     visits: i32,
-    child_ptr: Option<usize>,
+    child_ptr: Option<ArenaIndex>,
     total_score: f32,
 }
 
 impl Edge {
-    pub const fn new(m: Move, child_ptr: Option<usize>) -> Self {
+    pub const fn new(m: Move, child_ptr: Option<ArenaIndex>) -> Self {
         Self {
             m,
             child_ptr,
@@ -43,11 +43,11 @@ impl Edge {
         self.total_score
     }
 
-    pub const fn child(&self) -> Option<usize> {
+    pub const fn child(&self) -> Option<ArenaIndex> {
         self.child_ptr
     }
 
-    pub fn set_child(&mut self, child_ptr: Option<usize>) {
+    pub fn set_child(&mut self, child_ptr: Option<ArenaIndex>) {
         self.child_ptr = child_ptr;
     }
 }

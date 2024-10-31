@@ -12,6 +12,7 @@ use std::{
     f32::consts::SQRT_2,
     fmt::Debug,
     mem::size_of,
+    num::NonZeroU32,
     ops::{Index, IndexMut},
     sync::atomic::{AtomicBool, Ordering},
     time::Instant,
@@ -25,13 +26,13 @@ pub struct Arena {
     depth: u64,
     nodes: u64,
     previous_board: Option<HistorizedBoard>,
-    root: usize,
+    root: ArenaIndex,
 
     root_visits: i32,
     root_total_score: f32,
 
-    lru_head: usize,
-    lru_tail: usize,
+    lru_head: ArenaIndex,
+    lru_tail: ArenaIndex,
 }
 
 impl Arena {
@@ -54,13 +55,13 @@ impl Arena {
         let mut arena = Self {
             node_list: arena.into_boxed_slice(),
             hash_table,
-            root: usize::MAX,
+            root: ArenaIndex::NONE,
             root_visits: 0,
             root_total_score: 0.,
             depth: 0,
             nodes: 0,
-            lru_head: usize::MAX,
-            lru_tail: usize::MAX,
+            lru_head: ArenaIndex::NONE,
+            lru_tail: ArenaIndex::NONE,
             previous_board: None,
         };
         arena.create_linked_list();
@@ -71,41 +72,40 @@ impl Arena {
     fn create_linked_list(&mut self) {
         let cap = self.node_list.len();
         for i in 1..cap - 1 {
-            self.node_list[i].set_next(Some(i + 1));
-            self.node_list[i].set_prev(Some(i - 1));
+            self.node_list[i].set_next(Some((i + 1).into()));
+            self.node_list[i].set_prev(Some((i - 1).into()));
         }
-        self.node_list[0].set_next(Some(1));
-        self.lru_head = 0;
-        self.node_list[cap - 1].set_prev(Some(cap - 2));
-        self.lru_tail = cap - 1;
+        self.node_list[0].set_next(Some(1.into()));
+        self.lru_head = 0.into();
+        self.node_list[cap - 1].set_prev(Some((cap - 2).into()));
+        self.lru_tail = (cap - 1).into();
     }
 
     pub fn reset(&mut self) {
         self.node_list.iter_mut().for_each(|n| *n = Node::default());
         self.create_linked_list();
-        self.root = usize::MAX;
+        self.root = ArenaIndex::NONE;
         self.hash_table.clear();
-        self.root = usize::MAX;
         self.root_visits = 0;
         self.root_total_score = 0.;
         self.depth = 0;
         self.nodes = 0;
     }
 
-    pub fn insert(&mut self, board: &HistorizedBoard, parent: Option<usize>, edge_idx: usize) -> usize {
+    pub fn insert(&mut self, board: &HistorizedBoard, parent: Option<ArenaIndex>, edge_idx: usize) -> ArenaIndex {
         let idx = self.remove_lru_node();
-        self[idx] = Node::new(board.game_state(), board.hash(), parent, edge_idx);
+        self[idx] = Node::new(board.game_state(), parent, edge_idx);
 
         self.insert_at_head(idx);
 
         idx
     }
 
-    fn parent_edge(&self, idx: usize) -> Option<&Edge> {
+    fn parent_edge(&self, idx: ArenaIndex) -> Option<&Edge> {
         Some(&self[self[idx].parent()?].edges()[self[idx].parent_edge_idx()])
     }
 
-    fn parent_edge_mut(&mut self, idx: usize) -> Option<&mut Edge> {
+    fn parent_edge_mut(&mut self, idx: ArenaIndex) -> Option<&mut Edge> {
         let parent = self[idx].parent()?;
         let child_idx = self[idx].parent_edge_idx();
         Some(&mut self[parent].edges_mut()[child_idx])
@@ -119,7 +119,7 @@ impl Arena {
         self.node_list.len()
     }
 
-    fn remove_lru_node(&mut self) -> usize {
+    fn remove_lru_node(&mut self) -> ArenaIndex {
         let tail = self.lru_tail;
         assert!(tail != self.root);
         let prev = self[tail].prev().expect("What");
@@ -133,7 +133,7 @@ impl Arena {
         tail
     }
 
-    fn remove_arbitrary_node(&mut self, idx: usize) {
+    fn remove_arbitrary_node(&mut self, idx: ArenaIndex) {
         let prev = self[idx].prev();
         let next = self[idx].next();
 
@@ -153,7 +153,7 @@ impl Arena {
         self[idx].set_next(None);
     }
 
-    fn insert_at_head(&mut self, idx: usize) {
+    fn insert_at_head(&mut self, idx: ArenaIndex) {
         let old_head = self.lru_head;
         self[idx].set_next(Some(old_head));
         self[old_head].set_prev(Some(idx));
@@ -163,7 +163,7 @@ impl Arena {
         self.lru_head = idx;
     }
 
-    fn move_to_front(&mut self, idx: usize) {
+    fn move_to_front(&mut self, idx: ArenaIndex) {
         self.remove_arbitrary_node(idx);
         self.insert_at_head(idx);
     }
@@ -174,7 +174,7 @@ impl Arena {
         self.node_list.len() - self.node_list.iter().filter_map(Node::parent).count()
     }
 
-    fn expand(&mut self, ptr: usize, board: &HistorizedBoard) {
+    fn expand(&mut self, ptr: ArenaIndex, board: &HistorizedBoard) {
         assert!(
             self[ptr].edges().is_empty() && !self[ptr].is_terminal(),
             "{:?}",
@@ -189,13 +189,19 @@ impl Arena {
         );
     }
 
-    fn evaluate(&self, ptr: usize, board: &HistorizedBoard) -> f32 {
+    fn evaluate(&self, ptr: ArenaIndex, board: &HistorizedBoard) -> f32 {
         self[ptr].evaluate().unwrap_or_else(|| board.wdl())
     }
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     // Thanks lightvector! :)
-    fn playout(&mut self, ptr: usize, board: &mut HistorizedBoard, parent_visits: i32, parent_total_score: f32) -> f32 {
+    fn playout(
+        &mut self,
+        ptr: ArenaIndex,
+        board: &mut HistorizedBoard,
+        parent_visits: i32,
+        parent_total_score: f32,
+    ) -> f32 {
         self.move_to_front(ptr);
         // Simulate
         let u = if self[ptr].is_terminal() || parent_visits == 0 {
@@ -237,7 +243,7 @@ impl Arena {
     }
 
     // Section 3.4 https://project.dke.maastrichtuniversity.nl/games/files/phd/Chaslot_thesis.pdf
-    fn final_move_selection(&self, ptr: usize) -> Option<&Edge> {
+    fn final_move_selection(&self, ptr: ArenaIndex) -> Option<&Edge> {
         let f = |edge: &Edge| {
             if edge.visits() == 0 {
                 f32::NEG_INFINITY
@@ -257,9 +263,9 @@ impl Arena {
         }
     }
 
-    fn reuse_tree(&self, board: &HistorizedBoard) -> Option<usize> {
+    fn reuse_tree(&self, board: &HistorizedBoard) -> Option<ArenaIndex> {
         let previous_board = self.previous_board.as_ref()?;
-        if self.root == usize::MAX {
+        if self.root == ArenaIndex::NONE {
             return None;
         }
 
@@ -286,7 +292,7 @@ impl Arena {
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     /// Returns a usize indexing into the edge that should be selected next
-    fn select_action(&self, ptr: usize, parent_edge_visits: i32, parent_total_score: f32) -> usize {
+    fn select_action(&self, ptr: ArenaIndex, parent_edge_visits: i32, parent_total_score: f32) -> usize {
         assert!(!self[ptr].edges().is_empty());
 
         self[ptr]
@@ -310,8 +316,8 @@ impl Arena {
             .unwrap()
     }
 
-    pub fn print_uci(&self, nodes: u64, search_start: Instant, max_depth: u64, avg_depth: u64, root: usize) {
-        let q = self.final_move_selection(root).unwrap().q();
+    pub fn print_uci(&self, nodes: u64, search_start: Instant, max_depth: u64, avg_depth: u64) {
+        let q = self.final_move_selection(self.root).unwrap().q();
         print!(
             "info time {} depth {} seldepth {} score cp {} nodes {} nps {} hashfull {:.0} pv ",
             search_start.elapsed().as_millis(),
@@ -323,7 +329,7 @@ impl Arena {
             (self.capacity() as f64 - self.empty_slots() as f64) / self.capacity() as f64 * 1000.,
         );
 
-        let mut ptr = Some(root);
+        let mut ptr = Some(self.root);
         while let Some(p) = ptr {
             if let Some(edge) = self.final_move_selection(p) {
                 print!("{} ", edge.m());
@@ -379,7 +385,7 @@ impl Arena {
 
             if total_depth / self.nodes > running_avg_depth && report {
                 running_avg_depth = total_depth / self.nodes;
-                self.print_uci(self.nodes, search_start, max_depth, total_depth / self.nodes, self.root);
+                self.print_uci(self.nodes, search_start, max_depth, total_depth / self.nodes);
             }
 
             if halt.load(Ordering::Relaxed)
@@ -390,7 +396,7 @@ impl Arena {
         }
 
         if report {
-            self.print_uci(self.nodes, search_start, max_depth, total_depth / self.nodes, self.root);
+            self.print_uci(self.nodes, search_start, max_depth, total_depth / self.nodes);
         }
         // TODO: Display stats if not in UCI mode, and add output if bestmove changes or every few nodes idk
         //       Also do tree reuse
@@ -422,16 +428,38 @@ impl Default for Arena {
         Self::new(32., true)
     }
 }
-impl Index<usize> for Arena {
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ArenaIndex(NonZeroU32);
+
+impl ArenaIndex {
+    const NONE: ArenaIndex = unsafe { Self(NonZeroU32::new_unchecked((u32::MAX - 1) ^ u32::MAX)) };
+}
+
+impl Index<ArenaIndex> for Arena {
     type Output = Node;
 
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.node_list[index]
+    fn index(&self, index: ArenaIndex) -> &Self::Output {
+        &self.node_list[usize::from(index)]
     }
 }
 
-impl IndexMut<usize> for Arena {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.node_list[index]
+impl IndexMut<ArenaIndex> for Arena {
+    fn index_mut(&mut self, index: ArenaIndex) -> &mut Self::Output {
+        &mut self.node_list[usize::from(index)]
+    }
+}
+
+impl From<usize> for ArenaIndex {
+    fn from(value: usize) -> Self {
+        assert!((0..(u32::MAX as usize - 1)).contains(&value));
+        NonZeroU32::new(value as u32 ^ u32::MAX).map(Self).unwrap()
+    }
+}
+
+impl From<ArenaIndex> for usize {
+    fn from(value: ArenaIndex) -> Self {
+        assert!(value != ArenaIndex::NONE);
+        (value.0.get() ^ u32::MAX) as Self
     }
 }
