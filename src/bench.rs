@@ -5,7 +5,7 @@ use std::{sync::atomic::AtomicBool, time::Instant};
 pub fn bench() {
     let halt = AtomicBool::new(false);
 
-    let search_type = SearchType::Depth(4, 1_048_576);
+    let search_type = SearchType::Depth(4);
     let mut arena = Arena::default();
 
     let mut nodes = 0;

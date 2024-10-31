@@ -56,8 +56,6 @@ const _: () = assert!(2 == std::mem::size_of::<Move>(), "Move should be 2 bytes"
 pub struct Move(pub NonZeroU16);
 
 impl Move {
-    pub const NULL: Option<Self> = None;
-
     pub const fn new(origin: Square, destination: Square, move_type: MoveType) -> Self {
         let m = origin.0 as u16 | ((destination.0 as u16) << 6) | ((move_type as u16) << 12);
         unsafe { Self(NonZero::new_unchecked(m)) }

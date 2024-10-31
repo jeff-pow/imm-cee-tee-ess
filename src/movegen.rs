@@ -23,15 +23,15 @@ impl Board {
     pub fn legal_moves(&self) -> MoveList {
         let mut moves = MoveList::default();
 
-        let mut dests = !self.color(self.stm);
+        let mut dests = !self.color(self.stm());
 
-        let kings = self.piece_color(self.stm, PieceName::King);
-        let knights = self.piece_color(self.stm, PieceName::Knight);
-        let diags = self.diags(self.stm);
-        let orthos = self.orthos(self.stm);
+        let kings = self.piece_color(self.stm(), PieceName::King);
+        let knights = self.piece_color(self.stm(), PieceName::Knight);
+        let diags = self.diags(self.stm());
+        let orthos = self.orthos(self.stm());
 
         let (pinned, checkers) = self.pinned_and_checkers();
-        let threats = self.threats(!self.stm);
+        let threats = self.threats(!self.stm());
 
         self.jumper_moves(kings, dests & !threats, &mut moves, pinned, king_attacks);
 
@@ -42,7 +42,7 @@ impl Board {
         }
 
         if !checkers.is_empty() {
-            dests &= BETWEEN_SQUARES[checkers.lsb()][self.king_square(self.stm)] | checkers;
+            dests &= BETWEEN_SQUARES[checkers.lsb()][self.king_square(self.stm())] | checkers;
         }
 
         self.jumper_moves(knights, dests, &mut moves, pinned, knight_attacks);
@@ -54,7 +54,7 @@ impl Board {
     }
 
     fn castling_moves(&self, threats: Bitboard, moves: &mut MoveList) {
-        if self.stm == Color::White {
+        if self.stm() == Color::White {
             if self.can_castle(Castle::WhiteKing)
                 && !threats.intersects(Castle::WhiteKing.check_squares())
                 && !self.occupancies().intersects(Castle::WhiteKing.empty_squares())
@@ -84,31 +84,44 @@ impl Board {
     }
 
     fn pawn_moves(&self, pinned: Bitboard, dests: Bitboard, moves: &mut MoveList) {
-        let pawns = self.piece_color(self.stm, PieceName::Pawn);
+        let pawns = self.piece_color(self.stm(), PieceName::Pawn);
         let vacancies = !self.occupancies();
-        let enemies = self.color(!self.stm);
+        let enemies = self.color(!self.stm());
 
-        let non_promotions = pawns & if self.stm == Color::White { !RANKS[6] } else { !RANKS[1] };
-        let promotions = pawns & if self.stm == Color::White { RANKS[6] } else { RANKS[1] };
+        let non_promotions = pawns
+            & if self.stm() == Color::White {
+                !RANKS[6]
+            } else {
+                !RANKS[1]
+            };
+        let promotions = pawns & if self.stm() == Color::White { RANKS[6] } else { RANKS[1] };
 
-        let up = if self.stm == Color::White { North } else { South };
-        let right = if self.stm == Color::White { NorthEast } else { SouthWest };
-        let left = if self.stm == Color::White { NorthWest } else { SouthEast };
+        let up = if self.stm() == Color::White { North } else { South };
+        let right = if self.stm() == Color::White {
+            NorthEast
+        } else {
+            SouthWest
+        };
+        let left = if self.stm() == Color::White {
+            NorthWest
+        } else {
+            SouthEast
+        };
 
-        let rank3 = if self.stm == Color::White { RANKS[2] } else { RANKS[5] };
+        let rank3 = if self.stm() == Color::White { RANKS[2] } else { RANKS[5] };
 
         // Single and double pawn pushes w/o captures
         let push_one = vacancies & non_promotions.shift(up);
         let push_two = vacancies & (push_one & rank3).shift(up);
         for dest in push_one & dests {
             let src = dest.shift(up.opp());
-            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
+            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm()), src).contains(dest) {
                 moves.push(Move::new(src, dest, MoveType::Normal));
             }
         }
         for dest in push_two & dests {
             let src = dest.shift(up.opp()).shift(up.opp());
-            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
+            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm()), src).contains(dest) {
                 moves.push(Move::new(src, dest, MoveType::DoublePush));
             }
         }
@@ -119,19 +132,19 @@ impl Board {
         let right_capture_promotions = promotions.shift(right) & enemies;
         for dest in no_capture_promotions & dests {
             let src = dest.shift(up.opp());
-            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
+            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm()), src).contains(dest) {
                 gen_promotions::<false>(src, dest, moves);
             }
         }
         for dest in left_capture_promotions & dests {
             let src = dest.shift(left.opp());
-            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
+            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm()), src).contains(dest) {
                 gen_promotions::<true>(src, dest, moves);
             }
         }
         for dest in right_capture_promotions & dests {
             let src = dest.shift(right.opp());
-            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
+            if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm()), src).contains(dest) {
                 gen_promotions::<true>(src, dest, moves);
             }
         }
@@ -142,13 +155,13 @@ impl Board {
             let right_captures = non_promotions.shift(right) & enemies;
             for dest in left_captures & dests {
                 let src = dest.shift(left.opp());
-                if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
+                if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm()), src).contains(dest) {
                     moves.push(Move::new(src, dest, MoveType::Capture));
                 }
             }
             for dest in right_captures & dests {
                 let src = dest.shift(right.opp());
-                if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm), src).contains(dest) {
+                if !pinned.contains(src) || valid_pinned_moves(self.king_square(self.stm()), src).contains(dest) {
                     moves.push(Move::new(src, dest, MoveType::Capture));
                 }
             }
@@ -166,17 +179,17 @@ impl Board {
     }
 
     fn get_en_passant(&self, dir: Direction) -> Option<Move> {
-        let sq = self.en_passant_square.checked_shift(dir)?;
-        let pawn = sq.bitboard() & self.piece_color(self.stm, PieceName::Pawn);
+        let sq = self.en_passant_square().checked_shift(dir)?;
+        let pawn = sq.bitboard() & self.piece_color(self.stm(), PieceName::Pawn);
         if pawn.is_empty() {
             return None;
         }
-        let dest = self.en_passant_square;
+        let dest = self.en_passant_square();
         let src = dest.checked_shift(dir)?;
         let m = Move::new(src, dest, MoveType::EnPassant);
         let mut new_b = *self;
         new_b.make_move(m);
-        if !new_b.square_under_attack(!self.stm, self.king_square(self.stm)) {
+        if !new_b.square_under_attack(!self.stm(), self.king_square(self.stm())) {
             return Some(m);
         }
         None
@@ -192,7 +205,7 @@ impl Board {
     ) {
         for src in pieces {
             let dests = if pinned.contains(src) {
-                destinations & valid_pinned_moves(self.king_square(self.stm), src)
+                destinations & valid_pinned_moves(self.king_square(self.stm()), src)
             } else {
                 destinations
             };
@@ -212,7 +225,7 @@ impl Board {
     ) {
         for src in pieces {
             let dests = if pinned.contains(src) {
-                destinations & valid_pinned_moves(self.king_square(self.stm), src)
+                destinations & valid_pinned_moves(self.king_square(self.stm()), src)
             } else {
                 destinations
             };

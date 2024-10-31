@@ -1,6 +1,7 @@
+pub mod fen;
+
 use core::fmt;
 
-use super::fen::STARTING_FEN;
 use crate::{
     attack_boards::{king_attacks, knight_attacks, pawn_attacks, pawn_set_attacks, BETWEEN_SQUARES},
     chess_move::{
@@ -16,6 +17,7 @@ use crate::{
     },
     zobrist::ZOBRIST,
 };
+use fen::STARTING_FEN;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Board {
@@ -23,11 +25,11 @@ pub struct Board {
     color_occupancies: [Bitboard; 2],
     mailbox: [Piece; 64],
     /// Side to move
-    pub stm: Color,
-    pub castling_rights: u8,
-    pub en_passant_square: Square,
-    pub half_moves: u8,
-    pub zobrist_hash: u64,
+    stm: Color,
+    castling_rights: u8,
+    en_passant_square: Square,
+    half_moves: u8,
+    zobrist_hash: u64,
 }
 
 impl Default for Board {
@@ -37,6 +39,26 @@ impl Default for Board {
 }
 
 impl Board {
+    pub const fn hash(&self) -> u64 {
+        self.zobrist_hash
+    }
+
+    pub fn half_moves(&self) -> usize {
+        usize::from(self.half_moves)
+    }
+
+    pub fn castling_rights(&self) -> usize {
+        usize::from(self.castling_rights)
+    }
+
+    pub const fn en_passant_square(&self) -> Square {
+        self.en_passant_square
+    }
+
+    pub const fn stm(&self) -> Color {
+        self.stm
+    }
+
     pub const fn piece_bbs(&self) -> [Bitboard; 6] {
         self.bitboards
     }
@@ -110,7 +132,7 @@ impl Board {
             Castle::WhiteQueen => self.castling_rights & Castle::WhiteQueen as u8 != 0,
             Castle::BlackKing => self.castling_rights & Castle::BlackKing as u8 != 0,
             Castle::BlackQueen => self.castling_rights & Castle::BlackQueen as u8 != 0,
-            Castle::None => panic!(),
+            Castle::None => unreachable!(),
         }
     }
 
@@ -183,11 +205,11 @@ impl Board {
     }
 
     pub(crate) fn diags(&self, side: Color) -> Bitboard {
-        self.piece_color(side, PieceName::Bishop) | self.piece_color(side, PieceName::Queen)
+        (self.piece(PieceName::Bishop) | self.piece(PieceName::Queen)) & self.color(side)
     }
 
     pub(crate) fn orthos(&self, side: Color) -> Bitboard {
-        self.piece_color(side, PieceName::Rook) | self.piece_color(side, PieceName::Queen)
+        (self.piece(PieceName::Rook) | self.piece(PieceName::Queen)) & self.color(side)
     }
 
     pub fn threats(&self, attacker: Color) -> Bitboard {
@@ -196,11 +218,13 @@ impl Board {
 
         threats |= pawn_set_attacks(self.piece_color(attacker, PieceName::Pawn), attacker);
 
-        let rooks = (self.piece(PieceName::Rook) | self.piece(PieceName::Queen)) & self.color(attacker);
-        rooks.into_iter().for_each(|sq| threats |= rook_attacks(sq, occ));
+        self.orthos(attacker)
+            .into_iter()
+            .for_each(|sq| threats |= rook_attacks(sq, occ));
 
-        let bishops = (self.piece(PieceName::Bishop) | self.piece(PieceName::Queen)) & self.color(attacker);
-        bishops.into_iter().for_each(|sq| threats |= bishop_attacks(sq, occ));
+        self.diags(attacker)
+            .into_iter()
+            .for_each(|sq| threats |= bishop_attacks(sq, occ));
 
         self.piece_color(attacker, PieceName::Knight)
             .into_iter()
@@ -215,7 +239,7 @@ impl Board {
     /// Returns true if a move was legal, and false if it was illegal.
     pub fn make_move(&mut self, m: Move) {
         let piece_moving = m.piece_moving(self);
-        assert_ne!(piece_moving, Piece::None, "{:?}\n{:?}", m, self);
+        assert_ne!(piece_moving, Piece::None, "{m:?}\n{self:?}");
         let capture = self.capture(m);
         self.remove_piece(m.to());
 

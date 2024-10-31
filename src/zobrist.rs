@@ -49,12 +49,12 @@ impl Board {
         }
 
         if self.can_en_passant() {
-            hash ^= ZOBRIST.en_passant[self.en_passant_square];
+            hash ^= ZOBRIST.en_passant[self.en_passant_square()];
         }
 
-        hash ^= ZOBRIST.castling[self.castling_rights as usize];
+        hash ^= ZOBRIST.castling[self.castling_rights()];
 
-        if self.stm == Color::Black {
+        if self.stm() == Color::Black {
             hash ^= ZOBRIST.turn;
         }
 
@@ -64,11 +64,14 @@ impl Board {
 
 #[cfg(test)]
 mod hashing_test {
-    use crate::{board::Board, chess_move::Move, fen};
+    use crate::{
+        board::{fen::STARTING_FEN, Board},
+        chess_move::Move,
+    };
 
     #[test]
     fn test_hashing() {
-        let board1 = Board::from_fen(fen::STARTING_FEN);
+        let board1 = Board::from_fen(STARTING_FEN);
         let board2 = Board::from_fen("4r3/4k3/8/4K3/8/8/8/8 w - - 0 1");
         let board3 = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         assert_ne!(board1.generate_hash(), board2.generate_hash());
@@ -80,14 +83,14 @@ mod hashing_test {
         let board = Board::from_fen("k7/3n4/8/2Q5/4pP2/8/8/K7 b - f3 0 1");
         let mut en_p = board;
         en_p.make_move(Move::from_san("e4f3", &board));
-        assert_eq!(en_p.zobrist_hash, en_p.generate_hash());
+        assert_eq!(en_p.hash(), en_p.generate_hash());
 
         let mut capture = board;
         capture.make_move(Move::from_san("d7c5", &capture));
-        assert_eq!(capture.zobrist_hash, capture.generate_hash());
+        assert_eq!(capture.hash(), capture.generate_hash());
 
         let mut quiet = board;
         quiet.make_move(Move::from_san("a1a2", &quiet));
-        assert_eq!(quiet.zobrist_hash, quiet.generate_hash());
+        assert_eq!(quiet.hash(), quiet.generate_hash());
     }
 }
