@@ -22,25 +22,25 @@ impl<const M: usize, const N: usize> Layer<M, N, f32> {
         let mut stm_feats = ArrayVec::<usize, 32>::new();
         let mut xstm_feats = ArrayVec::<usize, 32>::new();
 
-        let threats = board.threats(!board.stm);
-        let defenders = board.threats(board.stm);
+        let threats = board.threats(!board.stm());
+        let defenders = board.threats(board.stm());
         for sq in board.occupancies() {
             let piece = board.piece_at(sq);
-            let is_opp = piece.color() != board.stm;
+            let is_opp = piece.color() != board.stm();
             let map_feature = |feat, threats: Bitboard, defenders: Bitboard| {
                 2 * 768 * usize::from(defenders.contains(sq)) + 768 * usize::from(threats.contains(sq)) + feat
             };
 
             let stm_feat = 384 * usize::from(is_opp)
                 + 64 * usize::from(piece.name())
-                + if board.stm == Color::White {
+                + if board.stm() == Color::White {
                     usize::from(sq)
                 } else {
                     usize::from(sq.flip_vertical())
                 };
             let xstm_feat = 384 * usize::from(!is_opp)
                 + 64 * usize::from(piece.name())
-                + if board.stm == Color::Black {
+                + if board.stm() == Color::Black {
                     usize::from(sq)
                 } else {
                     usize::from(sq.flip_vertical())

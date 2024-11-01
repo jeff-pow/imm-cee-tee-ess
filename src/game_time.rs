@@ -21,8 +21,7 @@ pub struct Clock {
 }
 
 impl Clock {
-    /// Returns true if engine is unlikely to finish another depth of iterative deepening before
-    /// time runs out for this search
+    /// Returns true if engine has exceeded recommended time
     pub fn soft_termination(&self, search_start: &Instant) -> bool {
         search_start.elapsed() > self.rec_time
     }

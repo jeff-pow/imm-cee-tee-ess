@@ -1,4 +1,4 @@
-//#![warn(clippy::all, clippy::pedantic/*, clippy::nursery*/)]
+//#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 //#![allow(
 //    clippy::cast_sign_loss,
 //    clippy::module_name_repetitions,
@@ -6,6 +6,9 @@
 //    clippy::cast_precision_loss,
 //    clippy::cast_possible_wrap,
 //    clippy::large_stack_frames,
+//    clippy::must_use_candidate,
+//    clippy::return_self_not_must_use,
+//    clippy::missing_panics_doc
 //)]
 
 mod arena;
@@ -15,7 +18,6 @@ pub mod board;
 pub mod chess_move;
 mod edge;
 pub mod eval;
-mod fen;
 mod game_time;
 mod hashtable;
 mod historized_board;

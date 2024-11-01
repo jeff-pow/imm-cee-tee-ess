@@ -257,7 +257,7 @@ impl Arena {
         }
     }
 
-    fn reuse_tree(&mut self, board: &HistorizedBoard) -> Option<usize> {
+    fn reuse_tree(&self, board: &HistorizedBoard) -> Option<usize> {
         let previous_board = self.previous_board.as_ref()?;
         if self.root == usize::MAX {
             return None;
@@ -348,18 +348,13 @@ impl Arena {
             if self[new_root].edges().is_empty() {
                 self.reset();
                 self.root = self.insert(board, None, usize::MAX);
-                println!("info string no edges");
             } else if new_root != self.root {
-                println!("info string reused");
-                self.root_visits = self.parent_edge(new_root).map(|e| e.visits()).unwrap_or(0);
-                self.root_total_score = self.parent_edge(new_root).map(|e| e.total_score()).unwrap_or(0.);
+                self.root_visits = self.parent_edge(new_root).map_or(0, Edge::visits);
+                self.root_total_score = self.parent_edge(new_root).map_or(0.0, Edge::total_score);
                 self[new_root].make_root();
                 self.root = new_root;
-            } else {
-                println!("info string else");
             }
         } else {
-            println!("info string not found");
             self.reset();
             self.root = self.insert(board, None, usize::MAX);
         }

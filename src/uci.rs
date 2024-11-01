@@ -4,8 +4,8 @@ use std::{io, time::Duration};
 
 use crate::arena::Arena;
 use crate::bench::bench;
+use crate::board::fen::{parse_fen_from_buffer, STARTING_FEN};
 use crate::chess_move::Move;
-use crate::fen::{parse_fen_from_buffer, STARTING_FEN};
 use crate::game_time::Clock;
 use crate::historized_board::HistorizedBoard;
 use crate::perft::perft;
@@ -13,8 +13,8 @@ use crate::search_type::SearchType;
 use crate::{board::Board, types::pieces::Color};
 use std::thread;
 
-pub const ENGINE_NAME: &str = "IM CEE TEE ESS";
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+const ENGINE_NAME: &str = "IM CEE TEE ESS";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub static PRETTY_PRINT: AtomicBool = AtomicBool::new(true);
 
@@ -99,29 +99,21 @@ fn position_command(input: &[&str]) -> HistorizedBoard {
 
     if input.contains(&"fen") {
         board.set_board(Board::from_fen(&parse_fen_from_buffer(input)));
-
-        if let Some(skip) = input.iter().position(|f| f == &"moves") {
-            parse_moves(&input[skip + 1..], &mut board);
-        }
     } else if input.contains(&"startpos") {
         board.set_board(Board::from_fen(STARTING_FEN));
+    }
 
-        if let Some(skip) = input.iter().position(|f| f == &"moves") {
-            parse_moves(&input[skip + 1..], &mut board);
+    if let Some(skip) = input.iter().position(|f| f == &"moves") {
+        for str in &input[skip + 1..] {
+            let m = Move::from_san(str, board.board());
+            board.make_move(m);
         }
     }
 
     board
 }
 
-fn parse_moves(moves: &[&str], board: &mut HistorizedBoard) {
-    for str in moves {
-        let m = Move::from_san(str, board.board());
-        board.make_move(m);
-    }
-}
-
-pub fn parse_time(buff: &[&str]) -> Clock {
+fn parse_time(buff: &[&str]) -> Clock {
     let mut game_time = Clock::default();
     let mut iter = buff.iter().skip(1);
     while let Some(uci_opt) = iter.next() {
@@ -151,35 +143,18 @@ pub fn parse_time(buff: &[&str]) -> Clock {
     game_time
 }
 
-pub fn handle_go(
-    arena: &mut Arena,
-    buffer: &[&str],
-    board: &HistorizedBoard,
-    msg: &mut Option<String>,
-    halt: &AtomicBool,
-) {
-    let search_type = if buffer.contains(&"depth") {
-        let mut iter = buffer.iter().skip(2);
-        let depth = iter.next().unwrap().parse::<i32>().unwrap();
-        SearchType::Depth(depth as u64, u64::MAX)
-    } else if buffer.contains(&"nodes") {
-        let mut iter = buffer.iter().skip(2);
-        let nodes = iter.next().unwrap().parse::<u64>().unwrap();
-        SearchType::Nodes(nodes)
-    } else if buffer.contains(&"wtime") {
-        let mut clock = parse_time(buffer);
-        clock.recommended_time(board.stm());
-        SearchType::Time(clock)
-    } else if buffer.contains(&"mate") {
-        let mut iter = buffer.iter().skip(2);
-        let ply = iter.next().unwrap().parse::<i32>().unwrap();
-        SearchType::Mate(ply)
-    } else if buffer.contains(&"movetime") {
-        let mut iter = buffer.iter().skip(2);
-        let ms = iter.next().unwrap().parse::<u64>().unwrap();
-        SearchType::MoveTime(Duration::from_millis(ms))
-    } else {
-        SearchType::Infinite
+fn handle_go(arena: &mut Arena, buffer: &[&str], board: &HistorizedBoard, msg: &mut Option<String>, halt: &AtomicBool) {
+    let search_type = match buffer {
+        ["go", "depth", depth] => SearchType::Depth(depth.parse::<u64>().unwrap()),
+        ["go", "nodes", nodes] => SearchType::Nodes(nodes.parse::<u64>().unwrap()),
+        ["go", "wtime" | "btime", ..] => {
+            let mut clock = parse_time(buffer);
+            clock.recommended_time(board.stm());
+            SearchType::Time(clock)
+        }
+        ["go", "mate", ply] => SearchType::Mate(ply.parse::<u64>().unwrap()),
+        ["go", "movetime", ms] => SearchType::MoveTime(Duration::from_millis(ms.parse::<u64>().unwrap())),
+        _ => SearchType::Infinite,
     };
 
     thread::scope(|s| {

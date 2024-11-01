@@ -47,7 +47,9 @@ impl Board {
 
         let piece_moving = self.piece_at(from);
         assert!(piece_moving != Piece::None);
-        let next = m.promotion().map_or(piece_moving, |promo| Piece::new(promo, self.stm));
+        let next = m
+            .promotion()
+            .map_or(piece_moving, |promo| Piece::new(promo, self.stm()));
 
         score -= next.value();
 
@@ -57,7 +59,7 @@ impl Board {
 
         let mut occupied = self.occupancies() ^ from.bitboard() ^ to.bitboard();
         if m.is_en_passant() {
-            occupied ^= self.en_passant_square.bitboard();
+            occupied ^= self.en_passant_square().bitboard();
         }
 
         let mut attackers = self.attackers(to, occupied) & occupied;
@@ -65,7 +67,7 @@ impl Board {
         let bishops = self.piece(PieceName::Bishop) | self.piece(PieceName::Queen);
         let rooks = self.piece(PieceName::Rook) | self.piece(PieceName::Queen);
 
-        let mut to_move = !self.stm;
+        let mut to_move = !self.stm();
 
         loop {
             let my_attackers = attackers & self.color(to_move);
@@ -97,7 +99,7 @@ impl Board {
             }
         }
 
-        to_move != self.stm
+        to_move != self.stm()
     }
 }
 

@@ -162,7 +162,7 @@ pub fn rook_attacks(sq: Square, occupied: Bitboard) -> Bitboard {
 //     a
 // }
 
-// Extracts move bitboards using known constants
+/// Extracts move bitboards using known constants
 // fn create_table(sq: Square, deltas: [Direction; 4], magics: &[Magi]) -> Vec<Bitboard> {
 //     let magic_entry =
 //         if deltas[0] == North {  } else { BISHOP_MAGICS[sq] };

@@ -4,8 +4,7 @@ use std::time::{Duration, Instant};
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum SearchType {
     /// User has requested a search until a particular depth
-    /// The second u64 allows for a node maximum to be established to keep bench from going for too long
-    Depth(u64, u64),
+    Depth(u64),
     /// Search determines how much time to allow itself.
     Time(Clock),
     /// User has requested a search for a certain amount of time
@@ -13,7 +12,7 @@ pub enum SearchType {
     /// Only search for N nodes
     Nodes(u64),
     /// Search for a mate at the provided depth
-    Mate(i32),
+    Mate(u64),
     #[default]
     /// Search forever
     Infinite,
@@ -22,7 +21,7 @@ pub enum SearchType {
 impl SearchType {
     pub fn should_stop(&self, nodes: u64, search_start: &Instant, depth: u64) -> bool {
         match self {
-            Self::Depth(d, n) => depth > *d || nodes >= *n,
+            Self::Depth(d) => depth >= *d,
             Self::Time(clock) => {
                 nodes % 256 == 0 && clock.hard_termination(search_start)
                     || nodes % 4096 == 0 && clock.soft_termination(search_start)

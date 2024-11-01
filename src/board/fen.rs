@@ -1,3 +1,4 @@
+use super::Board;
 use crate::{
     chess_move::Castle,
     types::{
@@ -5,8 +6,6 @@ use crate::{
         square::{Square, SQUARE_NAMES},
     },
 };
-
-use super::board::Board;
 
 /// Fen string for the starting position of a board
 pub const STARTING_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -33,8 +32,8 @@ impl Board {
                 }
                 let square = row * 8 + idx;
                 let square = Square(square as u8);
-                const PIECES: &str = "PpNnBbRrQqKk";
-                let Some(i) = PIECES.chars().position(|x| x == c) else {
+                let pieces = "PpNnBbRrQqKk";
+                let Some(i) = pieces.chars().position(|x| x == c) else {
                     panic!("Unrecognized char {c}, board could not be made");
                 };
                 board.place_piece(i.into(), square);
@@ -190,9 +189,11 @@ pub fn parse_fen_from_buffer(buf: &[&str]) -> String {
 #[cfg(test)]
 mod fen_tests {
     use crate::{
-        board::Board,
+        board::{
+            fen::{find_en_passant_square, parse_castling},
+            Board,
+        },
         chess_move::Castle,
-        fen::{find_en_passant_square, parse_castling},
     };
 
     #[test]

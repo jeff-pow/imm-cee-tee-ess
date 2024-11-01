@@ -18,7 +18,7 @@ impl HistorizedBoard {
             self.hashes.clear();
         }
         self.board.make_move(m);
-        self.hashes.push(self.board.zobrist_hash);
+        self.hashes.push(self.board.hash());
     }
 
     pub fn legal_moves(&self) -> MoveList {
@@ -26,7 +26,7 @@ impl HistorizedBoard {
     }
 
     pub fn game_state(&self) -> GameState {
-        if self.board.half_moves >= 100 || self.is_repetition() {
+        if self.board.half_moves() >= 100 || self.is_repetition() {
             return GameState::Draw;
         }
 
@@ -49,13 +49,13 @@ impl HistorizedBoard {
         self.hashes
             .iter()
             .rev()
-            .take(self.board.half_moves as usize + 1)
+            .take(self.board.half_moves() + 1)
             .skip(1)
             .any(|&hash| hash == self.hash())
     }
 
     pub const fn hash(&self) -> u64 {
-        self.board.zobrist_hash
+        self.board.hash()
     }
 
     pub fn wdl(&self) -> f32 {
@@ -71,7 +71,7 @@ impl HistorizedBoard {
     }
 
     pub const fn stm(&self) -> Color {
-        self.board.stm
+        self.board.stm()
     }
 
     pub const fn board(&self) -> &Board {
