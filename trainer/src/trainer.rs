@@ -35,10 +35,10 @@ pub fn train() {
             end_superbatch: 250,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.75 },
-        lr_scheduler: lr::StepLR {
-            start: 0.001,
-            gamma: 0.2,
-            step: 50,
+        lr_scheduler: lr::CosineDecayLR {
+            initial_lr: 1e-3,
+            final_lr: 1e-6,
+            final_superbatch: 240,
         },
         save_rate: 10,
     };
