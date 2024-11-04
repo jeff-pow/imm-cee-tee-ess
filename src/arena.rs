@@ -203,9 +203,12 @@ impl Arena {
         parent_total_score: f32,
     ) -> f32 {
         self.move_to_front(ptr);
+        let hash = board.hash();
         // Simulate
         let u = if self[ptr].is_terminal() || parent_visits == 0 {
-            self.evaluate(ptr, board)
+            self.hash_table
+                .probe(board.hash())
+                .unwrap_or_else(|| self.evaluate(ptr, board))
         } else {
             self.depth += 1;
             if self[ptr].should_expand() {
@@ -237,6 +240,7 @@ impl Arena {
             u
         };
         self.move_to_front(ptr);
+        self.hash_table.insert(hash, u);
 
         assert!((0.0..=1.0).contains(&u));
         1. - u
@@ -433,7 +437,7 @@ impl Default for Arena {
 pub(crate) struct ArenaIndex(NonZeroU32);
 
 impl ArenaIndex {
-    const NONE: ArenaIndex = unsafe { Self(NonZeroU32::new_unchecked((u32::MAX - 1) ^ u32::MAX)) };
+    const NONE: Self = unsafe { Self(NonZeroU32::new_unchecked((u32::MAX - 1) ^ u32::MAX)) };
 }
 
 impl Index<ArenaIndex> for Arena {
