@@ -306,7 +306,9 @@ impl Arena {
 
         // Softmax
         self[ptr].edges().iter().for_each(|e| {
-            let pol = 1. / self[ptr].edges().len() as f32 + 0.05 * f32::from(board.see(e.m(), -100));
+            let pol = 1. / self[ptr].edges().len() as f32
+                + 0.05 * f32::from(board.see(e.m(), -100))
+                + 0.05 * f32::from(board.see(e.m(), 1));
             policies.push(pol);
             total += pol.exp();
         });
