@@ -3,7 +3,7 @@ use std::mem::size_of;
 #[derive(Default, Debug, Clone, Copy)]
 pub struct TableEntry {
     key: u16,
-    ptr: i32,
+    eval: f32,
 }
 
 #[derive(Debug)]
@@ -19,13 +19,12 @@ impl HashTable {
         Self { data }
     }
 
-    #[expect(unused)]
-    pub fn probe(&self, hash: u64) -> Option<i32> {
-        let idx = index(hash, self.data.len());
+    pub fn probe(&self, hash: u64) -> Option<f32> {
+        let idx = self.index(hash);
         let key = hash as u16;
         let entry = &self.data[idx];
         if entry.key == key {
-            return Some(entry.ptr);
+            return Some(entry.eval);
         }
         None
     }
@@ -36,18 +35,17 @@ impl HashTable {
         }
     }
 
-    #[expect(unused)]
-    pub fn insert(&mut self, hash: u64, ptr: i32) {
-        let idx = index(hash, self.data.len());
+    pub fn insert(&mut self, hash: u64, eval: f32) {
+        let idx = self.index(hash);
         let key = hash as u16;
-        self.data[idx] = TableEntry { key, ptr }
+        self.data[idx] = TableEntry { key, eval }
     }
 
     pub const fn len(&self) -> usize {
         self.data.len()
     }
-}
 
-fn index(hash: u64, table_capacity: usize) -> usize {
-    ((u128::from(hash) * (table_capacity as u128)) >> 64) as usize
+    fn index(&self, hash: u64) -> usize {
+        ((u128::from(hash) * (self.data.len() as u128)) >> 64) as usize
+    }
 }
