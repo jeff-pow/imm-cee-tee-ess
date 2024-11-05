@@ -16,7 +16,8 @@ use super::{
 };
 use arrayvec::ArrayVec;
 
-pub type MoveList = ArrayVec<Move, 256>;
+pub const MAX_MOVES: usize = 256;
+pub type MoveList = ArrayVec<Move, MAX_MOVES>;
 
 impl Board {
     /// Generates all legal moves
