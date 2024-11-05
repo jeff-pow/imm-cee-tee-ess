@@ -8,6 +8,7 @@ use crate::{
     uci::PRETTY_PRINT,
     value::SCALE,
 };
+use arrayvec::ArrayVec;
 use std::{
     f32::consts::SQRT_2,
     fmt::Debug,
@@ -214,7 +215,7 @@ impl Arena {
             }
 
             // Select
-            let edge_idx = self.select_action(ptr, parent_visits, parent_total_score);
+            let edge_idx = self.select_action(ptr, board, parent_visits, parent_total_score);
 
             board.make_move(self[ptr].edges()[edge_idx].m());
 
@@ -292,21 +293,35 @@ impl Arena {
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     /// Returns a usize indexing into the edge that should be selected next
-    fn select_action(&self, ptr: ArenaIndex, parent_edge_visits: i32, parent_total_score: f32) -> usize {
+    fn select_action(
+        &self,
+        ptr: ArenaIndex,
+        board: &HistorizedBoard,
+        parent_edge_visits: i32,
+        parent_total_score: f32,
+    ) -> usize {
         assert!(!self[ptr].edges().is_empty());
+        let mut policies = ArrayVec::<f32, 256>::new_const();
+        let mut total = 0.0;
+
+        // Softmax
+        self[ptr].edges().iter().for_each(|e| {
+            let pol = 1. / self[ptr].edges().len() as f32 + 0.05 * f32::from(board.see(e.m(), -100));
+            policies.push(pol);
+            total += pol.exp();
+        });
+        policies.iter_mut().for_each(|pol| *pol = pol.exp() / total);
 
         self[ptr]
             .edges()
             .iter()
-            .map(|child| {
+            .zip(policies)
+            .map(|(child, policy)| {
                 let q = if child.visits() == 0 {
                     1. - (parent_total_score / parent_edge_visits as f32)
                 } else {
                     child.q()
                 };
-                // Try to assume an even probability since we don't have a policy yet. No
-                // clue if this is a sound idea or not.
-                let policy = 1. / self[ptr].edges().len() as f32;
 
                 q + CPUCT * policy * (parent_edge_visits as f32).sqrt() / (1 + child.visits()) as f32
             })

@@ -25,6 +25,10 @@ impl HistorizedBoard {
         self.board.legal_moves()
     }
 
+    pub fn see(&self, m: Move, threshold: i32) -> bool {
+        self.board.see(m, threshold)
+    }
+
     pub fn game_state(&self) -> GameState {
         if self.board.half_moves() >= 100 || self.is_repetition() {
             return GameState::Draw;
