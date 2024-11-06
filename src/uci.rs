@@ -57,11 +57,10 @@ pub fn main_loop() -> ! {
             ),
             "position" => board = position_command(&input),
             "d" => {
-                dbg!(&board.board());
-            }
-            "dbg" => {
-                dbg!(&board.board());
-                board.board().debug_bitboards();
+                println!("{}", board.board());
+                for (m, pol) in board.policies() {
+                    println!("{m} - {pol:.5}");
+                }
             }
             "bench" => bench(),
             "go" => handle_go(&mut arena, &input, &board, &mut msg, &halt),

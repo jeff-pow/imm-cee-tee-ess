@@ -1,9 +1,10 @@
 use crate::{board::Board, chess_move::Move, historized_board::HistorizedBoard, movegen::MAX_MOVES};
 use arrayvec::ArrayVec;
 
+type PolicyVec = ArrayVec<(Move, f32), { MAX_MOVES }>;
 impl Board {
-    pub fn policies(&self) -> ArrayVec<(Move, f32), { MAX_MOVES }> {
-        let mut policies = ArrayVec::<(Move, f32), 256>::new_const();
+    pub fn policies(&self) -> PolicyVec {
+        let mut policies = PolicyVec::new_const();
         let mut denom = 0.0;
 
         // Softmax
@@ -20,7 +21,7 @@ impl Board {
 }
 
 impl HistorizedBoard {
-    pub fn policies(&self) -> ArrayVec<(Move, f32), { MAX_MOVES }> {
+    pub fn policies(&self) -> PolicyVec {
         self.board().policies()
     }
 }
