@@ -6,15 +6,17 @@ pub struct Edge {
     visits: i32,
     child_ptr: Option<ArenaIndex>,
     total_score: f32,
+    policy: f32,
 }
 
 impl Edge {
-    pub const fn new(m: Move, child_ptr: Option<ArenaIndex>) -> Self {
+    pub const fn new(m: Move, child_ptr: Option<ArenaIndex>, policy: f32) -> Self {
         Self {
             m,
             child_ptr,
             visits: 0,
             total_score: 0.,
+            policy,
         }
     }
 
@@ -49,5 +51,9 @@ impl Edge {
 
     pub fn set_child(&mut self, child_ptr: Option<ArenaIndex>) {
         self.child_ptr = child_ptr;
+    }
+
+    pub fn policy(&self) -> f32 {
+        self.policy
     }
 }

@@ -19,7 +19,7 @@ use crate::{
 };
 use fen::STARTING_FEN;
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Board {
     bitboards: [Bitboard; NUM_PIECES],
     color_occupancies: [Bitboard; 2],
@@ -239,7 +239,7 @@ impl Board {
     /// Returns true if a move was legal, and false if it was illegal.
     pub fn make_move(&mut self, m: Move) {
         let piece_moving = m.piece_moving(self);
-        assert_ne!(piece_moving, Piece::None, "{m:?}\n{self:?}");
+        assert_ne!(piece_moving, Piece::None, "{m:?}\n{self}");
         let capture = self.capture(m);
         self.remove_piece(m.to());
 
@@ -323,16 +323,6 @@ impl Board {
             / 32
     }
 
-    pub fn debug_bitboards(&self) {
-        for color in Color::iter() {
-            for piece in PieceName::iter() {
-                dbg!(color, piece);
-                dbg!(self.piece_color(color, piece));
-                println!("\n");
-            }
-        }
-    }
-
     pub const fn empty() -> Self {
         Self {
             bitboards: [Bitboard::EMPTY; 6],
@@ -372,43 +362,6 @@ impl fmt::Display for Board {
         str.push('\n');
         str.push_str(&self.to_fen());
         str.push('\n');
-
-        write!(f, "{str}")
-    }
-}
-
-impl fmt::Debug for Board {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut str = String::new();
-        str += match self.stm {
-            Color::White => "White to move\n",
-            Color::Black => "Black to move\n",
-        };
-        str += &self.to_string();
-        str += "threats:\n";
-        str += &format!("{:?}\n", self.threats(!self.stm));
-        str += "\n";
-        str += "Castles available: ";
-        if self.can_castle(Castle::WhiteKing) {
-            str += "K";
-        };
-        if self.can_castle(Castle::WhiteQueen) {
-            str += "Q";
-        };
-        if self.can_castle(Castle::BlackKing) {
-            str += "k";
-        };
-        if self.can_castle(Castle::BlackQueen) {
-            str += "q";
-        };
-        str += "\n";
-        str += "En Passant Square: ";
-        if self.can_en_passant() {
-            str += &self.en_passant_square.to_string();
-        } else {
-            str += "None";
-        }
-        str += "\n";
 
         write!(f, "{str}")
     }

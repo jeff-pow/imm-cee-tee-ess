@@ -25,6 +25,7 @@ mod magics;
 pub mod movegen;
 mod node;
 mod perft;
+pub mod policy;
 mod search_type;
 pub mod see;
 pub mod types;

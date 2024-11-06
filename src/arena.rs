@@ -180,11 +180,12 @@ impl Arena {
             "{:?}",
             self[ptr]
         );
+
         self[ptr].set_edges(
             board
-                .legal_moves()
+                .policies()
                 .into_iter()
-                .map(|m| Edge::new(m, None))
+                .map(|(m, pol)| Edge::new(m, None, pol))
                 .collect::<Box<[_]>>(),
         );
     }
@@ -308,11 +309,8 @@ impl Arena {
                 } else {
                     child.q()
                 };
-                // Try to assume an even probability since we don't have a policy yet. No
-                // clue if this is a sound idea or not.
-                let policy = 1. / self[ptr].edges().len() as f32;
 
-                q + CPUCT * policy * (parent_edge_visits as f32).sqrt() / (1 + child.visits()) as f32
+                q + CPUCT * child.policy() * (parent_edge_visits as f32).sqrt() / (1 + child.visits()) as f32
             })
             .enumerate()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
