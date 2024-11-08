@@ -1,7 +1,7 @@
 use crate::threat_inputs::ThreatInput;
 use bullet::{
-    loader, lr, optimiser, outputs, wdl, Activation, LocalSettings, Loss, NetworkTrainer, TrainerBuilder,
-    TrainingSchedule, TrainingSteps,
+    loader, lr, optimiser, outputs, wdl, Activation, LocalSettings, Loss, TrainerBuilder, TrainingSchedule,
+    TrainingSteps,
 };
 
 pub fn train() {
