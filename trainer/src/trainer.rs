@@ -10,15 +10,11 @@ pub fn train() {
         .optimiser(optimiser::AdamW)
         .input(ThreatInput)
         .output_buckets(outputs::Single)
-        .feature_transformer(256)
+        .feature_transformer(768)
         .activate(Activation::SCReLU)
         .add_layer(16)
         .activate(Activation::SCReLU)
-        .add_layer(16)
-        .activate(Activation::SCReLU)
-        .add_layer(16)
-        .activate(Activation::SCReLU)
-        .add_layer(16)
+        .add_layer(32)
         .activate(Activation::SCReLU)
         .add_layer(1)
         .build();
@@ -32,13 +28,13 @@ pub fn train() {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
             start_superbatch: 0,
-            end_superbatch: 250,
+            end_superbatch: 750,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.75 },
         lr_scheduler: lr::CosineDecayLR {
             initial_lr: 1e-3,
-            final_lr: 1e-6,
-            final_superbatch: 240,
+            final_lr: 1e-7,
+            final_superbatch: 750,
         },
         save_rate: 10,
     };

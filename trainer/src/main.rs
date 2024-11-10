@@ -3,5 +3,5 @@ mod threat_inputs;
 mod trainer;
 
 fn main() {
-    advanced::train();
+    trainer::train();
 }
