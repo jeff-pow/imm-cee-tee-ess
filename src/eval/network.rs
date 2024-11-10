@@ -95,10 +95,8 @@ impl<const M: usize, const N: usize> PerspectiveLayer<M, N, f32> {
 pub struct Network {
     pub(super) ft: Layer<INPUT_SIZE, L1_SIZE, f32>,
     pub(super) l1: PerspectiveLayer<L1_SIZE, 16, f32>,
-    pub(super) l2: Layer<16, 16, f32>,
-    pub(super) l3: Layer<16, 16, f32>,
-    pub(super) l4: Layer<16, 16, f32>,
-    pub(super) l5: Layer<16, 1, f32>,
+    pub(super) l2: Layer<16, 32, f32>,
+    pub(super) l3: Layer<32, 1, f32>,
 }
 
 impl Board {
@@ -107,9 +105,7 @@ impl Board {
         let l1 = NET.l1.forward(ft);
         let l2 = NET.l2.forward(l1);
         let l3 = NET.l3.forward(l2);
-        let l4 = NET.l4.forward(l3);
-        let l5 = NET.l5.forward(l4);
-        l5[0] * SCALE
+        l3[0] * SCALE
     }
 
     /// Credit to viridithas for these values and concepts
