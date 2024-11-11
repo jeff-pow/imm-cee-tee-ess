@@ -20,8 +20,8 @@ pub fn train() {
             decay: 0.01,
             beta1: 0.9,
             beta2: 0.999,
-            min_weight: -1.,
-            max_weight: 1.,
+            min_weight: -1.98,
+            max_weight: 1.98,
         },
         ThreatInput,
         outputs::Single,
@@ -34,10 +34,6 @@ pub fn train() {
             ("l2b".to_string(), QuantTarget::Float),
             ("l3w".to_string(), QuantTarget::Float),
             ("l3b".to_string(), QuantTarget::Float),
-            ("l4w".to_string(), QuantTarget::Float),
-            ("l4b".to_string(), QuantTarget::Float),
-            ("l5w".to_string(), QuantTarget::Float),
-            ("l5b".to_string(), QuantTarget::Float),
         ],
     );
 
@@ -48,13 +44,13 @@ pub fn train() {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
             start_superbatch: 0,
-            end_superbatch: 240,
+            end_superbatch: 750,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.75 },
-        lr_scheduler: lr::CosineDecayLR {
+        lr_scheduler: lr::ExponentialDecayLR {
             initial_lr: 1e-3,
             final_lr: 1e-7,
-            final_superbatch: 240,
+            final_superbatch: 750,
         },
         save_rate: 10,
     };
@@ -104,17 +100,11 @@ fn build_network() -> (Graph, Node) {
     let l1w = builder.create_weights("l1w", Shape::new(16, L1_SIZE * 2));
     let l1b = builder.create_weights("l1b", Shape::new(16, 1));
 
-    let l2w = builder.create_weights("l2w", Shape::new(16, 16));
-    let l2b = builder.create_weights("l2b", Shape::new(16, 1));
+    let l2w = builder.create_weights("l2w", Shape::new(32, 16));
+    let l2b = builder.create_weights("l2b", Shape::new(32, 1));
 
-    let l3w = builder.create_weights("l3w", Shape::new(16, 16));
-    let l3b = builder.create_weights("l3b", Shape::new(16, 1));
-
-    let l4w = builder.create_weights("l4w", Shape::new(16, 16));
-    let l4b = builder.create_weights("l4b", Shape::new(16, 1));
-
-    let l5w = builder.create_weights("l5w", Shape::new(1, 16));
-    let l5b = builder.create_weights("l5b", Shape::new(1, 1));
+    let l3w = builder.create_weights("l3w", Shape::new(1, 32));
+    let l3b = builder.create_weights("l3b", Shape::new(1, 1));
 
     // inference
     let ft = sparse_affine_dual_with_activation(&mut builder, ftw, stm, nstm, ftb, Activation::SCReLU);
@@ -125,13 +115,7 @@ fn build_network() -> (Graph, Node) {
     let l2 = operations::affine(&mut builder, l2w, l1, l2b);
     let l2 = operations::activate(&mut builder, l2, Activation::SCReLU);
 
-    let l3 = operations::affine(&mut builder, l3w, l2, l3b);
-    let l3 = operations::activate(&mut builder, l3, Activation::SCReLU);
-
-    let l4 = operations::affine(&mut builder, l4w, l3, l4b);
-    let l4 = operations::activate(&mut builder, l4, Activation::SCReLU);
-
-    let predicted = operations::affine(&mut builder, l5w, l4, l5b);
+    let predicted = operations::affine(&mut builder, l3w, l2, l3b);
     let sigmoided = operations::activate(&mut builder, predicted, Activation::Sigmoid);
     operations::mse(&mut builder, sigmoided, targets);
 
@@ -153,7 +137,7 @@ fn seed_weights(graph: &mut Graph) {
         .get_weights_mut("l1b")
         .seed_random(0.0, 1.0 / (2. * L1_SIZE as f32).sqrt(), true);
 
-    for name in ["l2w", "l2b", "l3w", "l3b", "l4w", "l4b", "l5w", "l5b"] {
+    for name in ["l2w", "l2b", "l3w", "l3b"] {
         graph
             .get_weights_mut(name)
             .seed_random(0.0, 1.0 / (16_f32).sqrt(), true);
