@@ -305,16 +305,6 @@ impl Board {
         self.zobrist_hash ^= ZOBRIST.turn;
     }
 
-    pub fn make_null_move(&mut self) {
-        self.stm = !self.stm;
-        self.zobrist_hash ^= ZOBRIST.turn;
-        self.half_moves += 1;
-        if self.can_en_passant() {
-            self.zobrist_hash ^= ZOBRIST.en_passant[self.en_passant_square];
-        }
-        self.en_passant_square = Square::NONE;
-    }
-
     pub fn mat_scale(&self) -> i32 {
         700 + ((PieceName::Knight.value() * self.piece(PieceName::Knight).count_bits())
             + (PieceName::Bishop.value() * self.piece(PieceName::Bishop).count_bits())

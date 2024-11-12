@@ -53,7 +53,7 @@ impl Edge {
         self.child_ptr = child_ptr;
     }
 
-    pub fn policy(&self) -> f32 {
+    pub const fn policy(&self) -> f32 {
         self.policy
     }
 }

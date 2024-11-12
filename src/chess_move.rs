@@ -1,8 +1,5 @@
 use core::fmt;
-use std::{
-    fmt::Display,
-    num::{NonZero, NonZeroU16},
-};
+use std::fmt::Display;
 
 use crate::{
     board::Board,
@@ -43,9 +40,6 @@ pub enum MoveType {
     KnightCapturePromotion = 13,
 }
 
-const _: () = assert!(std::mem::size_of::<Move>() == std::mem::size_of::<Option<Move>>());
-const _: () = assert!(2 == std::mem::size_of::<Move>(), "Move should be 2 bytes");
-
 /// A move needs 16 bits to be stored
 ///
 /// bit  0-5: origin square (from 0 to 63)
@@ -53,12 +47,11 @@ const _: () = assert!(2 == std::mem::size_of::<Move>(), "Move should be 2 bytes"
 /// bit 12-15: special move flag
 /// NOTE: en passant bit is set only when a pawn can be captured
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct Move(pub NonZeroU16);
+pub struct Move(pub u16);
 
 impl Move {
     pub const fn new(origin: Square, destination: Square, move_type: MoveType) -> Self {
-        let m = origin.0 as u16 | ((destination.0 as u16) << 6) | ((move_type as u16) << 12);
-        unsafe { Self(NonZero::new_unchecked(m)) }
+        Self(origin.0 as u16 | ((destination.0 as u16) << 6) | ((move_type as u16) << 12))
     }
 
     pub fn is_capture(self, board: &Board) -> bool {
@@ -83,7 +76,7 @@ impl Move {
     }
 
     pub fn flag(self) -> MoveType {
-        let f = (self.0.get() >> 12) as u8 & 0b1111;
+        let f = (self.0 >> 12) as u8 & 0b1111;
         match f {
             0 => Normal,
             1 => QueenPromotion,
@@ -118,11 +111,11 @@ impl Move {
     }
 
     pub const fn from(self) -> Square {
-        Square((self.0.get() & 0b11_1111) as u8)
+        Square((self.0 & 0b11_1111) as u8)
     }
 
     pub const fn to(self) -> Square {
-        Square((self.0.get() >> 6 & 0b11_1111) as u8)
+        Square((self.0 >> 6 & 0b11_1111) as u8)
     }
 
     pub fn is_tactical(self, board: &Board) -> bool {
@@ -277,13 +270,13 @@ impl fmt::Debug for Move {
 
 impl From<u16> for Move {
     fn from(value: u16) -> Self {
-        Self(NonZeroU16::new(value).unwrap())
+        Self(value)
     }
 }
 
 impl From<Move> for u16 {
     fn from(value: Move) -> Self {
-        value.0.get()
+        value.0
     }
 }
 

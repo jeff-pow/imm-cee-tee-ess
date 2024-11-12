@@ -36,7 +36,7 @@ pub struct Arena {
 }
 
 impl Arena {
-    pub fn new(mb: f32, report: bool) -> Self {
+    pub fn new(mb: f32) -> Self {
         let cap = (mb * 15. / 16. * 1024. * 1024. / size_of::<Node>() as f32) as usize;
         assert!(
             (0..u32::MAX as usize).contains(&cap),
@@ -45,13 +45,6 @@ impl Arena {
         let arena = vec![Node::default(); cap];
 
         let hash_table = HashTable::new(mb / 16.);
-        if report {
-            println!(
-                "{mb} MB arena created with {} entries and hash table with {} entries.",
-                arena.len(),
-                hash_table.len()
-            );
-        }
         let mut arena = Self {
             node_list: arena.into_boxed_slice(),
             hash_table,
@@ -427,12 +420,12 @@ impl Debug for Arena {
 
 impl Default for Arena {
     fn default() -> Self {
-        Self::new(32., true)
+        Self::new(32.)
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct ArenaIndex(NonZeroU32);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ArenaIndex(NonZeroU32);
 
 impl ArenaIndex {
     const NONE: Self = unsafe { Self(NonZeroU32::new_unchecked((u32::MAX - 1) ^ u32::MAX)) };

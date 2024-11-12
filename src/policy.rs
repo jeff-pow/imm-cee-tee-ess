@@ -1,9 +1,17 @@
-use crate::{board::Board, chess_move::Move, historized_board::HistorizedBoard, movegen::MAX_MOVES};
+use crate::{
+    board::Board,
+    chess_move::Move,
+    historized_board::HistorizedBoard,
+    movegen::MAX_MOVES,
+    types::pieces::{Color, PieceName},
+};
 use arrayvec::ArrayVec;
+use std::cmp::min;
 
 type PolicyVec = ArrayVec<(Move, f32), { MAX_MOVES }>;
 impl Board {
     pub fn policies(&self) -> PolicyVec {
+        let game_phase = self.game_phase();
         let mut policies = PolicyVec::new_const();
         let mut denom = 0.0;
 
@@ -11,12 +19,54 @@ impl Board {
         let legal_moves = self.legal_moves();
         legal_moves.iter().for_each(|m| {
             // Bet you've never seen hand crafted policy before :)
-            let pol = f32::from(self.see(*m, -100)) + f32::from(self.see(*m, 1)) + hce_evaluate(self, *m);
+            let pol = f32::from(self.see(*m, -100)) + f32::from(self.see(*m, 1)) + self.move_pestimate(*m, game_phase);
             policies.push((*m, pol));
             denom += pol.exp();
         });
         policies.iter_mut().for_each(|(_, pol)| *pol = pol.exp() / denom);
         policies
+    }
+
+    fn game_phase(&self) -> i32 {
+        let mut game_phase = 0;
+
+        for piece in PieceName::iter() {
+            let bb = self.piece_color(Color::White, piece);
+            for _ in bb {
+                game_phase += game_phase_value(piece);
+            }
+        }
+        for piece in PieceName::iter() {
+            let bb = self.piece_color(Color::Black, piece);
+            for _ in bb {
+                game_phase += game_phase_value(piece);
+            }
+        }
+        game_phase
+    }
+
+    // Now this is a funny pun
+    fn move_pestimate(&self, m: Move, game_phase: i32) -> f32 {
+        let (mg_pts, eg_pts) = if self.stm() == Color::White {
+            (
+                get_mg_table(m.piece_moving(self).name())[m.to().flip_vertical()]
+                    - get_mg_table(m.piece_moving(self).name())[m.from().flip_vertical()],
+                get_eg_table(m.piece_moving(self).name())[m.to().flip_vertical()]
+                    - get_eg_table(m.piece_moving(self).name())[m.from().flip_vertical()],
+            )
+        } else {
+            (
+                get_mg_table(m.piece_moving(self).name())[m.to()] - get_mg_table(m.piece_moving(self).name())[m.from()],
+                get_eg_table(m.piece_moving(self).name())[m.to()] - get_eg_table(m.piece_moving(self).name())[m.from()],
+            )
+        };
+
+        // Using the number 24 makes the program take a few captures before it starts to take the end game
+        // tables into account
+        let mg_phase = min(game_phase, 24);
+        let eg_phase = 24 - mg_phase;
+
+        ((mg_pts * mg_phase + eg_pts * eg_phase) / 24) as f32 / 400.
     }
 }
 
@@ -24,49 +74,6 @@ impl HistorizedBoard {
     pub fn policies(&self) -> PolicyVec {
         self.board().policies()
     }
-}
-
-use std::cmp::min;
-
-use crate::types::pieces::{Color, PieceName};
-
-// https://www.chessprogramming.org/PeSTO%27s_Evaluation_Function
-pub fn hce_evaluate(board: &Board, m: Move) -> f32 {
-    let mut game_phase = 0;
-
-    for piece in PieceName::iter() {
-        let bb = board.piece_color(Color::White, piece);
-        for _ in bb {
-            game_phase += game_phase_value(piece);
-        }
-    }
-    for piece in PieceName::iter() {
-        let bb = board.piece_color(Color::Black, piece);
-        for _ in bb {
-            game_phase += game_phase_value(piece);
-        }
-    }
-
-    let mg_pts;
-    let eg_pts;
-    if board.stm() == Color::White {
-        mg_pts = get_mg_table(m.piece_moving(board).name())[m.to().flip_vertical()]
-            - get_mg_table(m.piece_moving(board).name())[m.from().flip_vertical()];
-        eg_pts = get_eg_table(m.piece_moving(board).name())[m.to().flip_vertical()]
-            - get_eg_table(m.piece_moving(board).name())[m.from().flip_vertical()];
-    } else {
-        mg_pts =
-            get_mg_table(m.piece_moving(board).name())[m.to()] - get_mg_table(m.piece_moving(board).name())[m.from()];
-        eg_pts =
-            get_eg_table(m.piece_moving(board).name())[m.to()] - get_eg_table(m.piece_moving(board).name())[m.from()];
-    }
-
-    // Using the number 24 makes the program take a few captures before it starts to take the end game
-    // tables into account
-    let mg_phase = min(game_phase, 24);
-    let eg_phase = 24 - mg_phase;
-
-    ((mg_pts * mg_phase + eg_pts * eg_phase) / 24) as f32 / 400.
 }
 
 #[rustfmt::skip]
@@ -239,12 +246,10 @@ fn get_eg_table(piece: PieceName) -> &'static [i32; 64] {
 
 fn game_phase_value(piece: PieceName) -> i32 {
     match piece {
-        PieceName::King => 0,
         PieceName::Queen => 4,
         PieceName::Rook => 2,
-        PieceName::Bishop => 1,
-        PieceName::Knight => 1,
-        PieceName::Pawn => 0,
-        PieceName::None => todo!(),
+        PieceName::Bishop | PieceName::Knight => 1,
+        PieceName::Pawn | PieceName::King => 0,
+        PieceName::None => unimplemented!(),
     }
 }

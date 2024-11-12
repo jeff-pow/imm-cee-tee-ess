@@ -41,10 +41,6 @@ impl HashTable {
         self.data[idx] = TableEntry { key, eval }
     }
 
-    pub const fn len(&self) -> usize {
-        self.data.len()
-    }
-
     fn index(&self, hash: u64) -> usize {
         ((u128::from(hash) * (self.data.len() as u128)) >> 64) as usize
     }

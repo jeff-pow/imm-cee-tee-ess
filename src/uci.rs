@@ -75,7 +75,7 @@ pub fn main_loop() -> ! {
                 PRETTY_PRINT.store(false, Ordering::SeqCst);
             }
             "setoption" => match input[..] {
-                ["setoption", "name", "Hash", "value", x] => arena = Arena::new(x.parse().unwrap(), true),
+                ["setoption", "name", "Hash", "value", x] => arena = Arena::new(x.parse().unwrap()),
                 ["setoption", "name", "Clear", "Hash", _x] => arena.reset(),
                 ["setoption", "name", "Threads", "value", _x] => (),
                 _ => println!("Option not recognized"),
