@@ -165,6 +165,7 @@ fn parse_castling(buf: &str) -> u8 {
     rights
 }
 
+// Don't try to make this function const no matter what clippy says :')
 fn find_en_passant_square(vec: &[char]) -> Option<u32> {
     if vec[0] == '-' {
         return None;

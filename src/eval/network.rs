@@ -2,7 +2,10 @@ use super::{util::f32_update, INPUT_SIZE, L1_SIZE, NET};
 
 use crate::{
     board::Board,
-    types::{bitboard::Bitboard, pieces::Color},
+    types::{
+        bitboard::Bitboard,
+        pieces::{Color, PieceName},
+    },
     value::SCALE,
 };
 use arrayvec::ArrayVec;
@@ -112,6 +115,14 @@ impl Board {
     pub fn scaled_eval(&self) -> i32 {
         let raw = self.raw_eval() as i32;
         raw * self.mat_scale() / 1024
+    }
+
+    fn mat_scale(&self) -> i32 {
+        700 + ([PieceName::Knight, PieceName::Bishop, PieceName::Rook, PieceName::Queen]
+            .into_iter()
+            .map(|p| p.value() * self.piece(p).count_bits())
+            .sum::<i32>())
+            / 32
     }
 }
 
