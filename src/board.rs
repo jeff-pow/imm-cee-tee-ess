@@ -67,27 +67,6 @@ impl Board {
         self.color_occupancies
     }
 
-    /// Will have unexpected behavior if either of the arrays aren't completely disjoint sets with themselves
-    pub fn from_bbs(piece_bbs: [Bitboard; 6], color_bbs: [Bitboard; 2], stm: Color) -> Self {
-        let mut mailbox = [Piece::None; 64];
-        for (piece_idx, &piece_bb) in piece_bbs.iter().enumerate() {
-            for sq in piece_bb {
-                for (color_idx, &color_bb) in color_bbs.iter().enumerate() {
-                    if color_bb.contains(sq) {
-                        mailbox[sq] = Piece::new(piece_idx.into(), color_idx.into());
-                    }
-                }
-            }
-        }
-        Self {
-            mailbox,
-            bitboards: piece_bbs,
-            color_occupancies: color_bbs,
-            stm,
-            ..Default::default()
-        }
-    }
-
     pub fn piece_color(&self, side: Color, piece: PieceName) -> Bitboard {
         self.piece(piece) & self.color(side)
     }
@@ -236,7 +215,7 @@ impl Board {
     }
 
     /// Function makes a move and modifies board state to reflect the move that just happened.
-    /// Returns true if a move was legal, and false if it was illegal.
+    /// Assumes move is legal. Does *no* error checking whatsoever to ensure legality.
     pub fn make_move(&mut self, m: Move) {
         let piece_moving = m.piece_moving(self);
         assert_ne!(piece_moving, Piece::None, "{m:?}\n{self}");
@@ -305,12 +284,25 @@ impl Board {
         self.zobrist_hash ^= ZOBRIST.turn;
     }
 
-    pub fn mat_scale(&self) -> i32 {
-        700 + ((PieceName::Knight.value() * self.piece(PieceName::Knight).count_bits())
-            + (PieceName::Bishop.value() * self.piece(PieceName::Bishop).count_bits())
-            + (PieceName::Rook.value() * self.piece(PieceName::Rook).count_bits())
-            + (PieceName::Queen.value() * self.piece(PieceName::Queen).count_bits()))
-            / 32
+    /// Will have unexpected behavior if either of the arrays aren't completely disjoint sets with themselves
+    pub fn from_bbs(piece_bbs: [Bitboard; 6], color_bbs: [Bitboard; 2], stm: Color) -> Self {
+        let mut mailbox = [Piece::None; 64];
+        for (piece_idx, &piece_bb) in piece_bbs.iter().enumerate() {
+            for sq in piece_bb {
+                for (color_idx, &color_bb) in color_bbs.iter().enumerate() {
+                    if color_bb.contains(sq) {
+                        mailbox[sq] = Piece::new(piece_idx.into(), color_idx.into());
+                    }
+                }
+            }
+        }
+        Self {
+            mailbox,
+            bitboards: piece_bbs,
+            color_occupancies: color_bbs,
+            stm,
+            ..Default::default()
+        }
     }
 
     pub const fn empty() -> Self {

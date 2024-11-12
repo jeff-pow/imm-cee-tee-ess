@@ -11,8 +11,8 @@ use crate::{
 };
 
 // Objectively this should be an enum, but until rust allows traits to be used at comp time for
-// defining const values, defining such those values becomes a rather large PITA. We already
-// need to iterate through squares to define LUTs with a while loop (real forward thinking rust)
+// defining const values (like lookup arrays), defining those values becomes a rather large PITA.
+// We already need to iterate through squares to define LUTs with a while loop (real forward thinking rust)
 // and converting from a number to an enum is exactly what the From trait is for. You know what
 // isn't available in const contexts? Traits ._.
 #[derive(Clone, Copy, Eq, PartialEq)]
