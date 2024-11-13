@@ -11,7 +11,9 @@ pub enum SearchType {
     MoveTime(Duration),
     /// Only search for N nodes
     Nodes(u64),
-    /// Search for a mate at the provided depth
+    /// Search for a mate at the provided ply. UCI spec says search to a depth,
+    /// but I convert to a ply when parsing because ply is much easier to
+    /// think about...
     Mate(u64),
     #[default]
     /// Search forever
@@ -19,7 +21,7 @@ pub enum SearchType {
 }
 
 impl SearchType {
-    pub fn should_stop(&self, nodes: u64, search_start: &Instant, depth: u64) -> bool {
+    pub fn should_stop(&self, nodes: u64, search_start: &Instant, depth: u64, mate_ply: Option<u8>) -> bool {
         match self {
             Self::Depth(d) => depth >= *d,
             Self::Time(clock) => {
@@ -28,7 +30,13 @@ impl SearchType {
             }
             Self::MoveTime(dur) => nodes % 256 == 0 && search_start.elapsed() > *dur,
             Self::Nodes(n) => nodes >= *n,
-            Self::Mate(_) => todo!("Mate search not implemented yet"),
+            Self::Mate(ply) => {
+                if let Some(mate_ply) = mate_ply {
+                    mate_ply <= *ply as u8
+                } else {
+                    false
+                }
+            }
             Self::Infinite => false,
         }
     }

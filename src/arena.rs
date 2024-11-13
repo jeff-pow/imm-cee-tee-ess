@@ -230,6 +230,7 @@ impl Arena {
 
             // Backpropagation
             self[ptr].edges_mut()[edge_idx].update_stats(u);
+            self.backpropogate_terminals(ptr, self[child_ptr].game_state());
 
             u
         };
@@ -245,10 +246,20 @@ impl Arena {
         let f = |edge: &Edge| {
             if edge.visits() == 0 {
                 f32::NEG_INFINITY
+            } else if let Some(child) = edge.child() {
+                match self[child].game_state() {
+                    GameState::Won(ply) => f32::from(ply) - 256.0,
+                    GameState::Lost(ply) => 1.0 + f32::from(ply),
+                    GameState::Draw => 0.5,
+                    GameState::Ongoing => edge.q(),
+                }
             } else {
                 edge.q()
             }
         };
+        dbg!(self[ptr].edges());
+        dbg!(self[ptr].game_state());
+
         self[ptr]
             .edges()
             .iter()
@@ -257,7 +268,12 @@ impl Arena {
 
     fn display_stats(&self) {
         for edge in self[self.root].edges() {
-            println!("{} - n: {:8}  -  Q: {}", edge.m(), edge.visits(), edge.q());
+            println!(
+                "{} - n: {:8}  -  Q: {}",
+                edge.m(),
+                edge.visits(),
+                if edge.visits() == 0 { 0.5 } else { edge.q() }
+            );
         }
     }
 
@@ -288,6 +304,32 @@ impl Arena {
         None
     }
 
+    fn backpropogate_terminals(&mut self, ptr: ArenaIndex, child_game_state: GameState) {
+        match child_game_state {
+            GameState::Lost(x) => self[ptr].set_game_state(GameState::Won(x + 1)),
+            GameState::Won(x) => {
+                let mut proven_loss = true;
+                let mut longest_win_length = x;
+                for action in self[ptr].edges() {
+                    if action.child().is_none() {
+                        proven_loss = false;
+                        break;
+                    } else if let GameState::Won(x) = self[action.child().unwrap()].game_state() {
+                        longest_win_length = x.max(longest_win_length);
+                    } else {
+                        proven_loss = false;
+                        break;
+                    }
+                }
+
+                if proven_loss {
+                    self[ptr].set_game_state(GameState::Lost(longest_win_length + 1));
+                }
+            }
+            GameState::Draw | GameState::Ongoing => (),
+        }
+    }
+
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     /// Returns a usize indexing into the edge that should be selected next
     fn select_action(&self, ptr: ArenaIndex, parent_edge_visits: i32, parent_total_score: f32) -> usize {
@@ -312,13 +354,23 @@ impl Arena {
     }
 
     pub fn print_uci(&self, nodes: u64, search_start: Instant, max_depth: u64, avg_depth: u64) {
-        let q = self.final_move_selection(self.root).unwrap().q();
+        let selected_edge = self.final_move_selection(self.root).unwrap();
+        let q = selected_edge.q();
+
         print!(
-            "info time {} depth {} seldepth {} score cp {} nodes {} nps {} hashfull {:.0} pv ",
+            "info time {} depth {} seldepth {} score ",
             search_start.elapsed().as_millis(),
             avg_depth,
             max_depth,
-            (-SCALE * ((1. - q) / q).ln()) as i32,
+        );
+        match self[selected_edge.child().unwrap()].game_state() {
+            GameState::Won(ply) => print!("mate {}", ply / 2 + 1),
+            GameState::Lost(ply) => print!("mate {}", ply / 2 + 1),
+            GameState::Draw => print!("cp 0"),
+            GameState::Ongoing => print!("cp {}", (-SCALE * ((1. - q) / q).ln()) as i32),
+        }
+        print!(
+            " nodes {} nps {} hashfull {:.0} pv ",
             nodes,
             (nodes as f64 / search_start.elapsed().as_secs_f64()) as i64,
             (self.capacity() as f64 - self.empty_slots() as f64) / self.capacity() as f64 * 1000.,
@@ -383,9 +435,20 @@ impl Arena {
                 self.print_uci(self.nodes, search_start, max_depth, total_depth / self.nodes);
             }
 
+            let mate_ply = match self[self.root].game_state() {
+                GameState::Won(ply) => Some(ply),
+                _ => None,
+            };
+
             if halt.load(Ordering::Relaxed)
-                || search_type.should_stop(self.nodes, &search_start, total_depth / self.nodes)
+                || search_type.should_stop(self.nodes, &search_start, total_depth / self.nodes, mate_ply)
             {
+                halt.store(true, Ordering::Relaxed);
+                break;
+            }
+
+            if self[self.root].is_terminal() {
+                halt.store(true, Ordering::Relaxed);
                 break;
             }
         }
@@ -400,7 +463,7 @@ impl Arena {
         }
 
         self.previous_board = Some(board.clone());
-
+        let gs = self[self.root].game_state();
         self.final_move_selection(self.root).unwrap().m()
     }
 }

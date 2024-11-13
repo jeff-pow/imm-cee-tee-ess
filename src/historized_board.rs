@@ -35,7 +35,7 @@ impl HistorizedBoard {
         }
 
         if self.board.in_check() {
-            GameState::Lost
+            GameState::Lost(0)
         } else {
             GameState::Draw
         }

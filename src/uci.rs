@@ -143,6 +143,7 @@ fn parse_time(buff: &[&str]) -> Clock {
 }
 
 fn handle_go(arena: &mut Arena, buffer: &[&str], board: &HistorizedBoard, msg: &mut Option<String>, halt: &AtomicBool) {
+    halt.store(false, Ordering::Relaxed);
     let search_type = match buffer {
         ["go", "depth", depth] => SearchType::Depth(depth.parse::<u64>().unwrap()),
         ["go", "nodes", nodes] => SearchType::Nodes(nodes.parse::<u64>().unwrap()),
@@ -151,7 +152,8 @@ fn handle_go(arena: &mut Arena, buffer: &[&str], board: &HistorizedBoard, msg: &
             clock.recommended_time(board.stm());
             SearchType::Time(clock)
         }
-        ["go", "mate", ply] => SearchType::Mate(ply.parse::<u64>().unwrap()),
+        // Uci spec says mate search is in depth, but ply is much easier to think about...
+        ["go", "mate", ply] => SearchType::Mate(ply.parse::<u64>().unwrap() * 2),
         ["go", "movetime", ms] => SearchType::MoveTime(Duration::from_millis(ms.parse::<u64>().unwrap())),
         _ => SearchType::Infinite,
     };

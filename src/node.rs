@@ -2,10 +2,9 @@ use crate::{arena::ArenaIndex, edge::Edge};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub enum GameState {
-    #[expect(unused)]
-    Won,
+    Won(u8),
     Draw,
-    Lost,
+    Lost(u8),
     #[default]
     Ongoing,
 }
@@ -14,9 +13,9 @@ const _: () = assert!(size_of::<GameState>() == size_of::<Option<GameState>>());
 impl GameState {
     const fn evaluate(self) -> Option<f32> {
         match self {
-            Self::Won => Some(1.),
+            Self::Won(_) => Some(1.),
             Self::Draw => Some(0.5),
-            Self::Lost => Some(0.),
+            Self::Lost(_) => Some(0.),
             Self::Ongoing => None,
         }
     }
@@ -105,5 +104,9 @@ impl Node {
 
     pub fn set_game_state(&mut self, game_state: GameState) {
         self.game_state = game_state;
+    }
+
+    pub const fn game_state(&self) -> GameState {
+        self.game_state
     }
 }
