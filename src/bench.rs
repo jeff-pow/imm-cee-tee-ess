@@ -16,7 +16,6 @@ pub fn bench() {
     for fen in BENCH_POSITIONS {
         halt.store(false, Ordering::Relaxed);
         let board: HistorizedBoard = fen.into();
-        println!("{}", fen);
         arena.reset();
         arena.start_search(&board, &halt, search_type, false);
         nodes += arena.nodes();
