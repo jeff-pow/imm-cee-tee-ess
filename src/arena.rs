@@ -257,8 +257,6 @@ impl Arena {
                 edge.q()
             }
         };
-        dbg!(self[ptr].edges());
-        dbg!(self[ptr].game_state());
 
         self[ptr]
             .edges()
@@ -463,7 +461,7 @@ impl Arena {
         }
 
         self.previous_board = Some(board.clone());
-        let gs = self[self.root].game_state();
+
         self.final_move_selection(self.root).unwrap().m()
     }
 }
