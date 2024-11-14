@@ -31,6 +31,9 @@ pub struct Node {
     game_state: GameState,
     edges: Box<[Edge]>,
 
+    obs_error: Option<f32>,
+    nn_utility: Option<f32>,
+
     prev: Option<ArenaIndex>,
     next: Option<ArenaIndex>,
     parent: Option<ArenaIndex>,
@@ -42,11 +45,29 @@ impl Node {
         Self {
             game_state,
             edges: Box::new([]),
+            obs_error: None,
+            nn_utility: None,
             prev: None,
             next: None,
             parent,
             edge_idx: edge_idx as u8,
         }
+    }
+
+    pub fn set_nn_utility(&mut self, value: f32) {
+        self.nn_utility = Some(value);
+    }
+
+    pub const fn nn_utility(&self) -> f32 {
+        self.nn_utility.unwrap()
+    }
+
+    pub fn set_obs_error(&mut self, value: f32) {
+        self.obs_error = Some(value);
+    }
+
+    pub const fn obs_error(&self) -> f32 {
+        self.obs_error.unwrap()
     }
 
     pub fn is_terminal(&self) -> bool {

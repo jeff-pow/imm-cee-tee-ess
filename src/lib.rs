@@ -28,6 +28,7 @@ mod perft;
 pub mod policy;
 mod search_type;
 pub mod see;
+mod subtree_bias;
 pub mod types;
 mod uci;
 mod value;

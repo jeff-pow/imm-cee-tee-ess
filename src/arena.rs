@@ -5,6 +5,7 @@ use crate::{
     historized_board::HistorizedBoard,
     node::{GameState, Node},
     search_type::SearchType,
+    subtree_bias::SubtreeBiasTable,
     uci::PRETTY_PRINT,
     value::SCALE,
 };
@@ -31,6 +32,8 @@ pub struct Arena {
     root_visits: i32,
     root_total_score: f32,
 
+    hist_table: SubtreeBiasTable,
+
     lru_head: ArenaIndex,
     lru_tail: ArenaIndex,
 }
@@ -52,6 +55,7 @@ impl Arena {
             root_visits: 0,
             root_total_score: 0.,
             depth: 0,
+            hist_table: SubtreeBiasTable::default(),
             nodes: 0,
             lru_head: ArenaIndex::NONE,
             lru_tail: ArenaIndex::NONE,
@@ -81,6 +85,7 @@ impl Arena {
         self.hash_table.clear();
         self.root_visits = 0;
         self.root_total_score = 0.;
+        self.hist_table.reset();
         self.depth = 0;
         self.nodes = 0;
     }
@@ -198,11 +203,16 @@ impl Arena {
     ) -> f32 {
         self.move_to_front(ptr);
         let hash = board.hash();
+        let stm = board.stm();
+        let pawn_hash = board.pawn_hash();
         // Simulate
         let u = if self[ptr].is_terminal() || parent_visits == 0 {
-            self.hash_table
+            let value = self
+                .hash_table
                 .probe(board.hash())
-                .unwrap_or_else(|| self.evaluate(ptr, board))
+                .unwrap_or_else(|| self.evaluate(ptr, board));
+            self[ptr].set_nn_utility(value);
+            value
         } else {
             self.depth += 1;
             if self[ptr].should_expand() {
@@ -221,13 +231,28 @@ impl Arena {
                 child_ptr
             });
 
-            let u = self.playout(
+            let mut u = self.playout(
                 child_ptr,
                 board,
                 self[ptr].edges()[edge_idx].visits(),
                 self[ptr].edges()[edge_idx].total_score(),
             );
 
+            if self[ptr].edges().iter().any(|e| e.visits() > 0) {
+                let obs_error = self[ptr].nn_utility()
+                    - (self[ptr]
+                        .edges()
+                        .iter()
+                        .map(|e| e.q().unwrap_or(0.) * e.visits() as f32)
+                        .sum::<f32>()
+                        / self[ptr].edges().iter().map(|e| e.visits() as f32).sum::<f32>());
+                self[ptr].set_obs_error(obs_error);
+                let obs_bias = self.hist_table.update_bias(stm, pawn_hash, obs_error, parent_visits);
+                // BUG: KataGo docs suggest this is -, but it's + in it's source code. I wonder if I missed a - sign
+                // in the source code.
+                u -= obs_bias;
+                u = u.clamp(0.0, 1.0);
+            }
             // Backpropagation
             self[ptr].edges_mut()[edge_idx].update_stats(u);
 
@@ -246,7 +271,7 @@ impl Arena {
             if edge.visits() == 0 {
                 f32::NEG_INFINITY
             } else {
-                edge.q()
+                edge.q().unwrap()
             }
         };
         self[ptr]
@@ -257,7 +282,12 @@ impl Arena {
 
     fn display_stats(&self) {
         for edge in self[self.root].edges() {
-            println!("{} - n: {:8}  -  Q: {}", edge.m(), edge.visits(), edge.q());
+            println!(
+                "{} - n: {:8}  -  Q: {}",
+                edge.m(),
+                edge.visits(),
+                edge.q().unwrap_or(0.)
+            );
         }
     }
 
@@ -300,7 +330,7 @@ impl Arena {
                 let q = if child.visits() == 0 {
                     1. - (parent_total_score / parent_edge_visits as f32)
                 } else {
-                    child.q()
+                    child.q().unwrap()
                 };
 
                 q + CPUCT * child.policy() * (parent_edge_visits as f32).sqrt() / (1 + child.visits()) as f32
@@ -312,7 +342,7 @@ impl Arena {
     }
 
     pub fn print_uci(&self, nodes: u64, search_start: Instant, max_depth: u64, avg_depth: u64) {
-        let q = self.final_move_selection(self.root).unwrap().q();
+        let q = self.final_move_selection(self.root).unwrap().q().unwrap();
         print!(
             "info time {} depth {} seldepth {} score cp {} nodes {} nps {} hashfull {:.0} pv ",
             search_start.elapsed().as_millis(),

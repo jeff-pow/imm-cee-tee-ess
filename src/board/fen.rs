@@ -49,6 +49,7 @@ impl Board {
             _ => panic!("Invalid turn"),
         };
         board.zobrist_hash = board.generate_hash();
+        board.pawn_hash = board.generate_pawn_hash();
 
         // 10th bucket find who can still castle
         // Order of array is white king castle, white queen castle, black king castle, black queen castle

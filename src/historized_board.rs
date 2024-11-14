@@ -58,6 +58,10 @@ impl HistorizedBoard {
         self.board.hash()
     }
 
+    pub const fn pawn_hash(&self) -> u64 {
+        self.board.pawn_hash()
+    }
+
     pub fn wdl(&self) -> f32 {
         self.board.wdl()
     }

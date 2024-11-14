@@ -30,6 +30,7 @@ pub struct Board {
     en_passant_square: Square,
     half_moves: u8,
     zobrist_hash: u64,
+    pawn_hash: u64,
 }
 
 impl Default for Board {
@@ -41,6 +42,10 @@ impl Default for Board {
 impl Board {
     pub const fn hash(&self) -> u64 {
         self.zobrist_hash
+    }
+
+    pub const fn pawn_hash(&self) -> u64 {
+        self.pawn_hash
     }
 
     pub fn half_moves(&self) -> usize {
@@ -120,6 +125,9 @@ impl Board {
         self.bitboards[piece.name()] ^= sq.bitboard();
         self.color_occupancies[piece.color()] ^= sq.bitboard();
         self.zobrist_hash ^= ZOBRIST.piece[piece][sq];
+        if piece.name() == PieceName::Pawn {
+            self.pawn_hash ^= ZOBRIST.piece[piece][sq];
+        }
     }
 
     fn remove_piece(&mut self, sq: Square) {
@@ -129,6 +137,9 @@ impl Board {
             self.bitboards[piece.name()] ^= sq.bitboard();
             self.color_occupancies[piece.color()] ^= sq.bitboard();
             self.zobrist_hash ^= ZOBRIST.piece[piece][sq];
+            if piece.name() == PieceName::Pawn {
+                self.pawn_hash ^= ZOBRIST.piece[piece][sq];
+            }
         }
     }
 
@@ -315,6 +326,7 @@ impl Board {
             en_passant_square: Square::NONE,
             half_moves: 0,
             zobrist_hash: 0,
+            pawn_hash: 0,
         }
     }
 }

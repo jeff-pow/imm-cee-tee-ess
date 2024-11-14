@@ -20,12 +20,12 @@ impl Edge {
         }
     }
 
-    pub fn q(&self) -> f32 {
-        assert_ne!(
-            0, self.visits,
-            "User must specify FPU if node hasn't been visited before."
-        );
-        self.total_score / self.visits as f32
+    pub fn q(&self) -> Option<f32> {
+        if self.visits == 0 {
+            None
+        } else {
+            Some(self.total_score / self.visits as f32)
+        }
     }
 
     pub fn update_stats(&mut self, u: f32) {
