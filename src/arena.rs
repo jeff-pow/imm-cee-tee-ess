@@ -212,7 +212,7 @@ impl Arena {
                 .probe(board.hash())
                 .unwrap_or_else(|| self.evaluate(ptr, board));
             self[ptr].set_nn_utility(value);
-            value
+            value + self.hist_table.bias(stm, pawn_hash)
         } else {
             self.depth += 1;
             if self[ptr].should_expand() {
@@ -238,21 +238,32 @@ impl Arena {
                 self[ptr].edges()[edge_idx].total_score(),
             );
 
-            if self[ptr].edges().iter().any(|e| e.visits() > 0) {
-                let obs_error = self[ptr].nn_utility()
-                    - (self[ptr]
-                        .edges()
-                        .iter()
-                        .map(|e| e.q().unwrap_or(0.) * e.visits() as f32)
-                        .sum::<f32>()
-                        / self[ptr].edges().iter().map(|e| e.visits() as f32).sum::<f32>());
+            let total_child_visits = self[ptr].edges().iter().map(Edge::visits).sum::<i32>();
+            let obs_bias = if total_child_visits > 0 {
+                let mut child_utility = 0.;
+                let mut count = 0;
+                for e in self[ptr].edges() {
+                    if let Some(q) = e.q() {
+                        child_utility += q;
+                        count += 1;
+                    }
+                }
+                child_utility /= count as f32;
+                let obs_error = (child_utility).mul_add(-(total_child_visits as f32).sqrt(), self[ptr].nn_utility());
                 self[ptr].set_obs_error(obs_error);
-                let obs_bias = self.hist_table.update_bias(stm, pawn_hash, obs_error, parent_visits);
-                // BUG: KataGo docs suggest this is -, but it's + in it's source code. I wonder if I missed a - sign
-                // in the source code.
-                u -= obs_bias;
-                u = u.clamp(0.0, 1.0);
-            }
+                if ptr == self.root {
+                    self.hist_table.bias(stm, pawn_hash)
+                } else {
+                    self.hist_table.update_bias(stm, pawn_hash, obs_error, parent_visits)
+                }
+            } else {
+                self.hist_table.bias(stm, pawn_hash)
+            };
+
+            // BUG: KataGo docs suggest this is -, but it's + in it's source code. I wonder if I missed a - sign
+            // in the source code.
+            u += obs_bias;
+            u = u.clamp(0.0, 1.0);
             // Backpropagation
             self[ptr].edges_mut()[edge_idx].update_stats(u);
 

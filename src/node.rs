@@ -38,6 +38,9 @@ pub struct Node {
     next: Option<ArenaIndex>,
     parent: Option<ArenaIndex>,
     edge_idx: u8,
+
+    pub last_delta_sum: f32,
+    pub last_bias_weight: f32,
 }
 
 impl Node {
@@ -51,6 +54,8 @@ impl Node {
             next: None,
             parent,
             edge_idx: edge_idx as u8,
+            last_delta_sum: 0.,
+            last_bias_weight: 0.,
         }
     }
 
