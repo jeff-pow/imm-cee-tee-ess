@@ -31,16 +31,12 @@ pub struct Node {
     game_state: GameState,
     edges: Box<[Edge]>,
 
-    obs_error: Option<f32>,
     nn_utility: Option<f32>,
 
     prev: Option<ArenaIndex>,
     next: Option<ArenaIndex>,
     parent: Option<ArenaIndex>,
     edge_idx: u8,
-
-    pub last_delta_sum: f32,
-    pub last_bias_weight: f32,
 }
 
 impl Node {
@@ -48,14 +44,11 @@ impl Node {
         Self {
             game_state,
             edges: Box::new([]),
-            obs_error: None,
             nn_utility: None,
             prev: None,
             next: None,
             parent,
             edge_idx: edge_idx as u8,
-            last_delta_sum: 0.,
-            last_bias_weight: 0.,
         }
     }
 
@@ -65,14 +58,6 @@ impl Node {
 
     pub const fn nn_utility(&self) -> f32 {
         self.nn_utility.unwrap()
-    }
-
-    pub fn set_obs_error(&mut self, value: f32) {
-        self.obs_error = Some(value);
-    }
-
-    pub const fn obs_error(&self) -> f32 {
-        self.obs_error.unwrap()
     }
 
     pub fn is_terminal(&self) -> bool {

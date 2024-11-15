@@ -5,7 +5,7 @@ use crate::{
     historized_board::HistorizedBoard,
     node::{GameState, Node},
     search_type::SearchType,
-    subtree_bias::SubtreeBiasTable,
+    subtree_bias::{SubtreeBiasTable, ALPHA},
     uci::PRETTY_PRINT,
     value::SCALE,
 };
@@ -212,11 +212,10 @@ impl Arena {
                 .probe(board.hash())
                 .unwrap_or_else(|| self.evaluate(ptr, board));
             self[ptr].set_nn_utility(value);
-            value + self.hist_table.bias(stm, pawn_hash)
+            (value + self.hist_table.bias(stm, pawn_hash) * self.).clamp(0.0, 1.0)
         } else {
             self.depth += 1;
             if self[ptr].should_expand() {
-                // Expand
                 self.expand(ptr, board);
             }
 
@@ -231,7 +230,7 @@ impl Arena {
                 child_ptr
             });
 
-            let mut u = self.playout(
+            let u = self.playout(
                 child_ptr,
                 board,
                 self[ptr].edges()[edge_idx].visits(),
@@ -239,7 +238,7 @@ impl Arena {
             );
 
             let total_child_visits = self[ptr].edges().iter().map(Edge::visits).sum::<i32>();
-            let obs_bias = if total_child_visits > 0 {
+            if total_child_visits > 0 {
                 let mut child_utility = 0.;
                 let mut count = 0;
                 for e in self[ptr].edges() {
@@ -249,23 +248,21 @@ impl Arena {
                     }
                 }
                 child_utility /= count as f32;
-                let obs_error = (child_utility).mul_add(-(total_child_visits as f32).sqrt(), self[ptr].nn_utility());
-                self[ptr].set_obs_error(obs_error);
-                if ptr == self.root {
-                    self.hist_table.bias(stm, pawn_hash)
-                } else {
-                    self.hist_table.update_bias(stm, pawn_hash, obs_error, parent_visits)
-                }
-            } else {
-                self.hist_table.bias(stm, pawn_hash)
-            };
+                let subtree_value_bias_weight = (total_child_visits as f32).powf(ALPHA);
+                let subtree_value_bias_delta_sum = (child_utility - u) * subtree_value_bias_weight;
+                self.hist_table
+                    .update_bias(stm, pawn_hash, subtree_value_bias_weight, subtree_value_bias_delta_sum);
+            }
+            // If the weight sum is too small, don't update u
+            if self.hist_table.index(stm, pawn_hash).weight_sum > 1e-3 {
+                // BUG: KataGo docs suggest this is -, but it's + in it's source code. I wonder if I missed a - sign
+                // in the source code.
+                u += self.hist_table.bias(stm, pawn_hash);
+            }
 
-            // BUG: KataGo docs suggest this is -, but it's + in it's source code. I wonder if I missed a - sign
-            // in the source code.
-            u += obs_bias;
             u = u.clamp(0.0, 1.0);
             // Backpropagation
-            self[ptr].edges_mut()[edge_idx].update_stats(u);
+            self[ptr].edges_mut()[edge_idx].update_stats(u + self.hist_table.bias());
 
             u
         };
