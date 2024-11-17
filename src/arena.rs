@@ -212,7 +212,7 @@ impl Arena {
                 .probe(board.hash())
                 .unwrap_or_else(|| self.evaluate(ptr, board));
             self[ptr].set_nn_utility(value);
-            (value + self.hist_table.bias(stm, pawn_hash) * self.).clamp(0.0, 1.0)
+            (value + self.hist_table.bias(stm, pawn_hash)).clamp(0.0, 1.0)
         } else {
             self.depth += 1;
             if self[ptr].should_expand() {
@@ -249,20 +249,17 @@ impl Arena {
                 }
                 child_utility /= count as f32;
                 let subtree_value_bias_weight = (total_child_visits as f32).powf(ALPHA);
-                let subtree_value_bias_delta_sum = (child_utility - u) * subtree_value_bias_weight;
+                let subtree_value_bias_delta_sum = (child_utility - self[ptr].nn_utility()) * subtree_value_bias_weight;
                 self.hist_table
                     .update_bias(stm, pawn_hash, subtree_value_bias_weight, subtree_value_bias_delta_sum);
             }
             // If the weight sum is too small, don't update u
-            if self.hist_table.index(stm, pawn_hash).weight_sum > 1e-3 {
-                // BUG: KataGo docs suggest this is -, but it's + in it's source code. I wonder if I missed a - sign
-                // in the source code.
-                u += self.hist_table.bias(stm, pawn_hash);
-            }
+            // BUG: KataGo docs suggest this is -, but it's + in it's source code. I wonder if I missed a - sign
+            // in the source code.
 
-            u = u.clamp(0.0, 1.0);
             // Backpropagation
-            self[ptr].edges_mut()[edge_idx].update_stats(u + self.hist_table.bias());
+            let update = (u + self.hist_table.bias(stm, pawn_hash)).clamp(0.0, 1.0);
+            self[ptr].edges_mut()[edge_idx].update_stats(update);
 
             u
         };
