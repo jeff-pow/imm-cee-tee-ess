@@ -239,27 +239,21 @@ impl Arena {
 
             let total_child_visits = self[ptr].edges().iter().map(Edge::visits).sum::<i32>();
             if total_child_visits > 0 {
-                let mut child_utility = 0.;
-                let mut count = 0;
-                for e in self[ptr].edges() {
-                    if let Some(q) = e.q() {
-                        child_utility += q;
-                        count += 1;
-                    }
-                }
-                child_utility /= count as f32;
-                let subtree_value_bias_weight = (total_child_visits as f32).powf(ALPHA);
-                let subtree_value_bias_delta_sum = (child_utility - self[ptr].nn_utility()) * subtree_value_bias_weight;
-                self.hist_table
-                    .update_bias(stm, pawn_hash, subtree_value_bias_weight, subtree_value_bias_delta_sum);
+                let subtree_utility = self[ptr]
+                    .edges()
+                    .iter()
+                    .filter_map(|e| e.q().map(|q| q * e.visits() as f32))
+                    .sum::<f32>()
+                    / self[ptr].edges().iter().map(Edge::visits).sum::<i32>() as f32;
+                let obs_error = self[ptr].nn_utility() - subtree_utility;
+                let weight = (total_child_visits as f32).powf(ALPHA);
+                self.hist_table.index_mut(stm, pawn_hash).error_sum += obs_error * weight;
+                self.hist_table.index_mut(stm, pawn_hash).weight_sum += weight;
             }
-            // If the weight sum is too small, don't update u
             // BUG: KataGo docs suggest this is -, but it's + in it's source code. I wonder if I missed a - sign
             // in the source code.
-
             // Backpropagation
-            let update = (u + self.hist_table.bias(stm, pawn_hash)).clamp(0.0, 1.0);
-            self[ptr].edges_mut()[edge_idx].update_stats(update);
+            self[ptr].edges_mut()[edge_idx].update_stats(u);
 
             u
         };
