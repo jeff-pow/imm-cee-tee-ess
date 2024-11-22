@@ -31,6 +31,9 @@ pub struct Node {
     game_state: GameState,
     edges: Box<[Edge]>,
 
+    visits: i32,
+    total_score: f32,
+
     prev: Option<ArenaIndex>,
     next: Option<ArenaIndex>,
     parent: Option<ArenaIndex>,
@@ -46,6 +49,8 @@ impl Node {
             next: None,
             parent,
             edge_idx: edge_idx as u8,
+            total_score: 0.0,
+            visits: 0,
         }
     }
 
@@ -105,5 +110,26 @@ impl Node {
 
     pub fn set_game_state(&mut self, game_state: GameState) {
         self.game_state = game_state;
+    }
+
+    pub fn q(&self) -> f32 {
+        assert_ne!(
+            0, self.visits,
+            "User must specify FPU if node hasn't been visited before."
+        );
+        self.total_score / self.visits as f32
+    }
+
+    pub fn update_stats(&mut self, u: f32) {
+        self.visits += 1;
+        self.total_score += u;
+    }
+
+    pub const fn visits(&self) -> i32 {
+        self.visits
+    }
+
+    pub const fn total_score(&self) -> f32 {
+        self.total_score
     }
 }
