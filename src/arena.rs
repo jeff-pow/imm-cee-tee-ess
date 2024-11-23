@@ -1,6 +1,5 @@
 use crate::{
     chess_move::Move,
-    edge::Edge,
     hashtable::HashTable,
     historized_board::HistorizedBoard,
     node::{GameState, Node},
@@ -8,6 +7,8 @@ use crate::{
     uci::PRETTY_PRINT,
     value::SCALE,
 };
+use core::f32;
+use core::ops::Range;
 use std::{
     f32::consts::SQRT_2,
     fmt::Debug,
@@ -78,19 +79,18 @@ impl Arena {
         self.nodes = 0;
     }
 
-    pub fn insert(&mut self, board: &HistorizedBoard, parent: Option<ArenaIndex>, edge_idx: usize) -> ArenaIndex {
+    pub fn insert(&mut self, board: &HistorizedBoard, parent: Option<ArenaIndex>, m: Move, policy: f32) -> ArenaIndex {
         let idx = self.remove_lru_node();
-        self[idx] = Node::new(board.game_state(), parent, edge_idx);
+        self[idx] = Node::new(board.game_state(), parent, m, policy);
 
         self.insert_at_head(idx);
 
         idx
     }
 
-    fn parent_edge_mut(&mut self, idx: ArenaIndex) -> Option<&mut Edge> {
+    fn parent_edge_mut(&mut self, idx: ArenaIndex) -> Option<&mut Node> {
         let parent = self[idx].parent()?;
-        let child_idx = self[idx].parent_edge_idx();
-        Some(&mut self[parent].edges_mut()[child_idx])
+        Some(&mut self[parent])
     }
 
     pub const fn nodes(&self) -> u64 {
@@ -99,6 +99,15 @@ impl Arena {
 
     pub const fn capacity(&self) -> usize {
         self.node_list.len()
+    }
+
+    fn get_contiguous_chunk(&self, required_size: usize) -> Range<ArenaIndex> {
+        let mut tail = self.lru_tail;
+        loop {
+            if self[tail].num_children() >= required_size {
+                self.
+            }
+        }
     }
 
     fn remove_lru_node(&mut self) -> ArenaIndex {
@@ -110,7 +119,8 @@ impl Arena {
         // Some nodes need to tell their parents they don't exist anymore, but only nodes that
         // have actually been initialized
         if let Some(parent) = self.parent_edge_mut(tail) {
-            parent.set_child(None);
+            todo!();
+            //parent.set_child(None);
         }
         tail
     }
@@ -157,19 +167,16 @@ impl Arena {
     }
 
     fn expand(&mut self, ptr: ArenaIndex, board: &HistorizedBoard) {
-        assert!(
-            self[ptr].edges().is_empty() && !self[ptr].is_terminal(),
-            "{:?}",
-            self[ptr]
-        );
+        assert!(!self[ptr].has_children() && !self[ptr].is_terminal(), "{:?}", self[ptr]);
 
-        self[ptr].set_edges(
-            board
-                .policies()
-                .into_iter()
-                .map(|(m, pol)| Edge::new(m, None, pol))
-                .collect::<Box<[_]>>(),
-        );
+        todo!();
+        //self[ptr].set_edges(
+        //    board
+        //        .policies()
+        //        .into_iter()
+        //        .map(|(m, pol)| Edge::new(m, None, pol))
+        //        .collect::<Box<[_]>>(),
+        //);
     }
 
     fn evaluate(&self, ptr: ArenaIndex, board: &HistorizedBoard) -> f32 {
@@ -194,15 +201,9 @@ impl Arena {
             }
 
             // Select
-            let edge_idx = self.select_action(ptr);
+            let child_ptr = self.select_action(ptr);
 
-            board.make_move(self[ptr].edges()[edge_idx].m());
-
-            let child_ptr = self[ptr].edges()[edge_idx].child().unwrap_or_else(|| {
-                let child_ptr = self.insert(board, Some(ptr), edge_idx);
-                self[ptr].edges_mut()[edge_idx].set_child(Some(child_ptr));
-                child_ptr
-            });
+            board.make_move(self[child_ptr].m());
 
             let u = self.playout(child_ptr, board);
 
@@ -219,25 +220,30 @@ impl Arena {
     }
 
     // Section 3.4 https://project.dke.maastrichtuniversity.nl/games/files/phd/Chaslot_thesis.pdf
-    fn final_move_selection(&self, ptr: ArenaIndex) -> Option<&Edge> {
-        let f = |edge: &Edge| edge.child().map_or(f32::NEG_INFINITY, |child| self[child].q());
+    fn final_move_selection(&self, ptr: ArenaIndex) -> Option<ArenaIndex> {
+        let f = |child: ArenaIndex| {
+            if self[child].visits() == 0 {
+                f32::NEG_INFINITY
+            } else {
+                self[child].q()
+            }
+        };
         self[ptr]
-            .edges()
-            .iter()
+            .children()
             .max_by(|&e1, &e2| f(e1).partial_cmp(&f(e2)).unwrap())
     }
 
     fn display_stats(&self) {
-        for edge in self[self.root].edges() {
-            if let Some(child) = edge.child() {
+        for child in self[self.root].children() {
+            if self[child].visits() > 0 {
                 println!(
                     "{} - n: {:8}  -  Q: {}",
-                    edge.m(),
+                    self[child].m(),
                     self[child].visits(),
                     self[child].q()
                 );
             } else {
-                println!("{} - unvisited", edge.m());
+                println!("{} - unvisited", self[child].m());
             }
         }
     }
@@ -248,21 +254,16 @@ impl Arena {
             return None;
         }
 
-        for first_edge in self[self.root].edges().iter().filter(|e| e.child().is_some()) {
-            assert!(first_edge.child().is_some());
-            for second_edge in self[first_edge.child().unwrap()]
-                .edges()
-                .iter()
-                .filter(|e| e.child().is_some())
-            {
+        for first_child in self[self.root].children().filter(|&child| self[child].visits() > 0) {
+            for second_child in self[first_child].children().filter(|&child| self[child].visits() > 0) {
                 let mut temp_board = previous_board.clone();
 
-                temp_board.make_move(first_edge.m());
-                temp_board.make_move(second_edge.m());
+                temp_board.make_move(self[first_child].m());
+                temp_board.make_move(self[second_child].m());
 
                 if temp_board == *board {
-                    assert!(second_edge.child().is_some());
-                    return second_edge.child();
+                    assert!(self[second_child].visits() > 0);
+                    return Some(second_child);
                 }
             }
         }
@@ -271,32 +272,33 @@ impl Arena {
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     /// Returns a usize indexing into the edge that should be selected next
-    fn select_action(&self, ptr: ArenaIndex) -> usize {
-        assert!(!self[ptr].edges().is_empty());
+    fn select_action(&self, ptr: ArenaIndex) -> ArenaIndex {
+        assert!(self[ptr].has_children());
         let parent_total_score = self[ptr].total_score();
         let parent_visits = self[ptr].visits();
 
         self[ptr]
-            .edges()
-            .iter()
-            .map(|edge| {
-                let q = if edge.child().is_none_or(|c| self[c].visits() == 0) {
+            .children()
+            .map(|child| {
+                let q = if self[child].visits() == 0 {
                     1. - (parent_total_score / parent_visits as f32)
                 } else {
-                    self[edge.child().unwrap()].q()
+                    self[child].q()
                 };
 
-                let child_visits = edge.child().map_or(0, |child| self[child].visits());
-                q + CPUCT * edge.policy() * (parent_visits as f32).sqrt() / (1 + child_visits) as f32
+                let child_visits = self[child].visits();
+                (
+                    child,
+                    q + CPUCT * self[child].policy() * (parent_visits as f32).sqrt() / (1 + child_visits) as f32,
+                )
             })
-            .enumerate()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-            .map(|(index, _)| index)
+            .map(|(ptr, _)| ptr)
             .unwrap()
     }
 
     pub fn print_uci(&self, nodes: u64, search_start: Instant, max_depth: u64, avg_depth: u64) {
-        let q = self[self.final_move_selection(self.root).unwrap().child().unwrap()].q();
+        let q = self[self.final_move_selection(self.root).unwrap()].q();
         print!(
             "info time {} depth {} seldepth {} score cp {} nodes {} nps {} hashfull {:.0} pv ",
             search_start.elapsed().as_millis(),
@@ -310,9 +312,9 @@ impl Arena {
 
         let mut ptr = Some(self.root);
         while let Some(p) = ptr {
-            if let Some(edge) = self.final_move_selection(p) {
-                print!("{} ", edge.m());
-                ptr = edge.child();
+            if let Some(child) = self.final_move_selection(p) {
+                print!("{} ", self[child].m());
+                ptr = Some(child);
             } else {
                 break;
             }
@@ -330,16 +332,16 @@ impl Arena {
         let search_start = Instant::now();
 
         if let Some(new_root) = self.reuse_tree(board) {
-            if self[new_root].edges().is_empty() {
+            if !self[new_root].has_children() {
                 self.reset();
-                self.root = self.insert(board, None, usize::MAX);
+                self.root = self.insert(board, None, Move::NULL, 1.0);
             } else if new_root != self.root {
                 self[new_root].make_root();
                 self.root = new_root;
             }
         } else {
             self.reset();
-            self.root = self.insert(board, None, usize::MAX);
+            self.root = self.insert(board, None, Move::NULL, 1.0);
         }
         let root = self.root;
         self[root].set_game_state(GameState::Ongoing);
@@ -383,7 +385,7 @@ impl Arena {
 
         self.previous_board = Some(board.clone());
 
-        self.final_move_selection(self.root).unwrap().m()
+        self[self.final_move_selection(self.root).unwrap()].m()
     }
 }
 
@@ -410,7 +412,7 @@ impl Default for Arena {
 pub struct ArenaIndex(NonZeroU32);
 
 impl ArenaIndex {
-    const NONE: Self = unsafe { Self(NonZeroU32::new_unchecked((u32::MAX - 1) ^ u32::MAX)) };
+    pub(crate) const NONE: Self = unsafe { Self(NonZeroU32::new_unchecked((u32::MAX - 1) ^ u32::MAX)) };
 }
 
 impl Index<ArenaIndex> for Arena {

@@ -1,4 +1,4 @@
-use crate::{arena::ArenaIndex, edge::Edge};
+use crate::{arena::ArenaIndex, chess_move::Move, edge::Edge};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub enum GameState {
@@ -29,7 +29,11 @@ impl GameState {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Node {
     game_state: GameState,
-    edges: Box<[Edge]>,
+
+    m: Move,
+    first_child: Option<ArenaIndex>,
+    num_children: u8,
+    policy: f32,
 
     visits: i32,
     total_score: f32,
@@ -37,20 +41,21 @@ pub struct Node {
     prev: Option<ArenaIndex>,
     next: Option<ArenaIndex>,
     parent: Option<ArenaIndex>,
-    edge_idx: u8,
 }
 
 impl Node {
-    pub fn new(game_state: GameState, parent: Option<ArenaIndex>, edge_idx: usize) -> Self {
+    pub const fn new(game_state: GameState, parent: Option<ArenaIndex>, m: Move, policy: f32) -> Self {
         Self {
             game_state,
-            edges: Box::new([]),
             prev: None,
             next: None,
             parent,
-            edge_idx: edge_idx as u8,
             total_score: 0.0,
             visits: 0,
+            m,
+            policy,
+            first_child: None,
+            num_children: 0,
         }
     }
 
@@ -62,20 +67,23 @@ impl Node {
         self.game_state.evaluate()
     }
 
+    pub const fn has_children(&self) -> bool {
+        // Theoretically you only need one of these checks but extra
+        // confidence never hurt anyone :)
+        self.num_children > 0 && self.first_child.is_some()
+    }
+
+    pub fn num_children(&self) -> usize {
+        usize::from(self.num_children)
+    }
+
+    pub fn children(&self) -> impl Iterator<Item = ArenaIndex> {
+        let x = usize::from(self.first_child.unwrap());
+        (x..x + usize::from(self.num_children)).map(usize::into)
+    }
+
     pub fn should_expand(&self) -> bool {
-        self.game_state == GameState::Ongoing && self.edges.is_empty()
-    }
-
-    pub const fn edges(&self) -> &[Edge] {
-        &self.edges
-    }
-
-    pub fn edges_mut(&mut self) -> &mut [Edge] {
-        &mut self.edges
-    }
-
-    pub fn set_edges(&mut self, edges: Box<[Edge]>) {
-        self.edges = edges;
+        self.game_state == GameState::Ongoing && self.num_children == 0
     }
 
     pub const fn prev(&self) -> Option<ArenaIndex> {
@@ -98,14 +106,10 @@ impl Node {
         self.parent
     }
 
-    pub fn parent_edge_idx(&self) -> usize {
-        self.edge_idx.into()
-    }
-
     /// Remove parent node status
     pub fn make_root(&mut self) {
         self.parent = None;
-        self.edge_idx = u8::MAX;
+        self.m = Move::NULL;
     }
 
     pub fn set_game_state(&mut self, game_state: GameState) {
@@ -131,5 +135,13 @@ impl Node {
 
     pub const fn total_score(&self) -> f32 {
         self.total_score
+    }
+
+    pub fn policy(&self) -> f32 {
+        self.policy
+    }
+
+    pub fn m(&self) -> Move {
+        self.m
     }
 }
