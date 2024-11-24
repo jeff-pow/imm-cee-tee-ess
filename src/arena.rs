@@ -101,13 +101,60 @@ impl Arena {
         self.node_list.len()
     }
 
-    fn get_contiguous_chunk(&self, required_size: usize) -> Range<ArenaIndex> {
+    fn remove_children(&mut self, ptr: ArenaIndex) {
+        for child in self[ptr].children() {
+            self[child].set_parent(None);
+        }
+        self[ptr].remove_children();
+    }
+
+    #[allow(dead_code)]
+    /// `ArenaIndex` returned is the start of the contiguous chunk, and it is guaranteed to be at
+    /// least as long as the `required_size` parameter
+    fn get_contiguous_chunk(&mut self, required_size: usize) -> ArenaIndex {
+        assert!(required_size > 0);
+        let mut tail = self.lru_tail;
+        // First see if we can steal it from another node that already had the memory allocated but
+        // probably isn't going to use it any time soon.
+        loop {
+            if tail == self.root {
+                break;
+            }
+            if self[tail].num_children() >= required_size {
+                let child_start = self[tail].first_child();
+                self.remove_children(tail);
+                self.move_to_front(tail);
+                return child_start;
+            }
+            tail = self[tail].prev().unwrap();
+        }
+
+        // If that fails, try counting backwards to get the right number of spaces from consecutively
+        // unused nodes. Go backwards because at the beginning of the program, lru_tail is the last
+        // node in the arena.
         let mut tail = self.lru_tail;
         loop {
-            if self[tail].num_children() >= required_size {
-                self.
+            if tail == self.root {
+                break;
             }
+            let x = usize::from(tail);
+            if !self[tail].has_children() {
+                let mut successful = true;
+
+                for i in 0..required_size {
+                    if self[ArenaIndex::from(x - i)].parent().is_some() {
+                        successful = false;
+                        break;
+                    }
+                }
+
+                if successful {
+                    return ArenaIndex::from(x - required_size + 1);
+                }
+            }
+            tail = self[tail].prev().unwrap();
         }
+        panic!("My code didn't work :(");
     }
 
     fn remove_lru_node(&mut self) -> ArenaIndex {

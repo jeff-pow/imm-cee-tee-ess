@@ -1,4 +1,4 @@
-use crate::{arena::ArenaIndex, chess_move::Move, edge::Edge};
+use crate::{arena::ArenaIndex, chess_move::Move};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub enum GameState {
@@ -73,6 +73,10 @@ impl Node {
         self.num_children > 0 && self.first_child.is_some()
     }
 
+    pub const fn first_child(&self) -> ArenaIndex {
+        self.first_child.unwrap()
+    }
+
     pub fn num_children(&self) -> usize {
         usize::from(self.num_children)
     }
@@ -80,6 +84,19 @@ impl Node {
     pub fn children(&self) -> impl Iterator<Item = ArenaIndex> {
         let x = usize::from(self.first_child.unwrap());
         (x..x + usize::from(self.num_children)).map(usize::into)
+    }
+
+    pub fn remove_children(&mut self) {
+        self.num_children = 0;
+        self.first_child = None;
+    }
+
+    pub const fn parent(&self) -> Option<ArenaIndex> {
+        self.parent
+    }
+
+    pub fn set_parent(&mut self, parent: Option<ArenaIndex>) {
+        self.parent = parent;
     }
 
     pub fn should_expand(&self) -> bool {
@@ -100,10 +117,6 @@ impl Node {
 
     pub fn set_next(&mut self, next: Option<ArenaIndex>) {
         self.next = next;
-    }
-
-    pub const fn parent(&self) -> Option<ArenaIndex> {
-        self.parent
     }
 
     /// Remove parent node status
