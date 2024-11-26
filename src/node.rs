@@ -1,4 +1,5 @@
 use crate::{arena::ArenaIndex, chess_move::Move};
+use std::fmt::Debug;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub enum GameState {
@@ -59,6 +60,17 @@ impl Node {
         }
     }
 
+    pub fn overwrite(&mut self, game_state: GameState, parent: Option<ArenaIndex>, m: Move, policy: f32) {
+        self.game_state = game_state;
+        self.parent = parent;
+        self.m = m;
+        self.policy = policy;
+        self.visits = 0;
+        self.total_score = 0.0;
+        self.first_child = None;
+        self.num_children = 0;
+    }
+
     pub fn is_terminal(&self) -> bool {
         self.game_state.is_terminal()
     }
@@ -87,8 +99,15 @@ impl Node {
     }
 
     pub fn children(&self) -> impl Iterator<Item = ArenaIndex> {
-        let x = usize::from(self.first_child.unwrap());
-        (x..x + usize::from(self.num_children)).map(usize::into)
+        self.first_child
+            .map(|first_child| {
+                let start = usize::from(first_child);
+                let end = start + usize::from(self.num_children);
+                start..end
+            })
+            .into_iter()
+            .flatten()
+            .map(usize::into)
     }
 
     pub fn remove_children(&mut self) {

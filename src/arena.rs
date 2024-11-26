@@ -13,7 +13,7 @@ use std::{
     fmt::Debug,
     mem::size_of,
     num::NonZeroU32,
-    ops::{Index, IndexMut},
+    ops::{Add, Index, IndexMut},
     sync::atomic::{AtomicBool, Ordering},
     time::Instant,
 };
@@ -108,6 +108,16 @@ impl Arena {
         assert!(required_size > 0);
         let mut tail = self.lru_tail;
         while tail != self.root {
+            let x = usize::from(tail);
+            // If that fails, try counting forwards to get the right number of spaces from consecutively
+            // unused nodes.
+            if !self[tail].has_children()
+                && usize::from(tail) + required_size <= self.node_list.len()
+                && (0..required_size).all(|i| self[tail + i].parent().is_none())
+            {
+                return tail;
+            }
+
             // First see if we can steal it from another node that already had the memory allocated but
             // hasn't used it in a while
             if self[tail].num_children() >= required_size {
@@ -115,24 +125,6 @@ impl Arena {
                 self.remove_children(tail);
                 self.move_to_front(tail);
                 return child_start;
-            }
-
-            // If that fails, try counting forwards to get the right number of spaces from consecutively
-            // unused nodes.
-            if !self[tail].has_children() {
-                let x = usize::from(tail);
-                let mut is_contiguous = true;
-
-                for i in 0..required_size {
-                    if self[ArenaIndex::from(x + i)].parent().is_some() {
-                        is_contiguous = false;
-                        break;
-                    }
-                }
-
-                if is_contiguous {
-                    return tail;
-                }
             }
 
             tail = self[tail].prev().unwrap();
@@ -143,8 +135,10 @@ impl Arena {
 
     fn remove_lru_node(&mut self) -> ArenaIndex {
         let tail = self.lru_tail;
+        let t = usize::from(tail);
         assert!(tail != self.root);
         let prev = self[tail].prev().expect("What");
+        let p = usize::from(prev);
         self[prev].set_next(None);
         self.lru_tail = prev;
         // Some nodes need to tell their parents they don't exist anymore, but only nodes that
@@ -156,8 +150,11 @@ impl Arena {
     }
 
     fn remove_arbitrary_node(&mut self, idx: ArenaIndex) {
+        let i = usize::from(idx);
         let prev = self[idx].prev();
         let next = self[idx].next();
+        let n = next.map(usize::from);
+        let p = prev.map(usize::from);
 
         if let Some(next) = next {
             self[next].set_prev(prev);
@@ -177,6 +174,8 @@ impl Arena {
 
     fn insert_at_head(&mut self, idx: ArenaIndex) {
         let old_head = self.lru_head;
+        let oh = usize::from(old_head);
+        let i = usize::from(idx);
         self[idx].set_next(Some(old_head));
         self[old_head].set_prev(Some(idx));
 
@@ -198,17 +197,18 @@ impl Arena {
 
     fn expand(&mut self, ptr: ArenaIndex, board: &HistorizedBoard) {
         assert!(!self[ptr].has_children() && !self[ptr].is_terminal(), "{:?}", self[ptr]);
+        let us = usize::from(ptr);
 
         let policies = board.policies();
         let start = self.get_contiguous_chunk(policies.len());
+        let s = usize::from(start);
         self[ptr].expand(start, policies.len() as u8);
         for i in 0..policies.len() {
             let (m, pol) = policies[i];
             let mut new_board = board.clone();
             new_board.make_move(m);
-            let node = Node::new(new_board.game_state(), Some(ptr), m, pol);
-            self[ArenaIndex::from(usize::from(start) + i)] = node;
-            self.move_to_front(ArenaIndex::from(usize::from(start) + i));
+            self[start + i].overwrite(new_board.game_state(), Some(ptr), m, pol);
+            self.move_to_front(start + i);
         }
     }
 
@@ -387,6 +387,7 @@ impl Arena {
             self.depth = 0;
 
             let u = self.playout(self.root, &mut board.clone());
+
             assert_eq!(root, self.root);
             self[root].update_stats(u);
 
@@ -437,11 +438,11 @@ impl Debug for Arena {
 
 impl Default for Arena {
     fn default() -> Self {
-        Self::new(32.)
+        Self::new(0.5)
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ArenaIndex(NonZeroU32);
 
 impl ArenaIndex {
@@ -473,5 +474,19 @@ impl From<ArenaIndex> for usize {
     fn from(value: ArenaIndex) -> Self {
         assert!(value != ArenaIndex::NONE);
         (value.0.get() ^ u32::MAX) as Self
+    }
+}
+
+impl Add<usize> for ArenaIndex {
+    type Output = Self;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self::from(usize::from(self) + rhs)
+    }
+}
+
+impl Debug for ArenaIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", usize::from(*self))
     }
 }
