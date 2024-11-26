@@ -147,6 +147,7 @@ impl Node {
     pub fn make_root(&mut self) {
         self.parent = None;
         self.m = Move::NULL;
+        self.policy = 1.0;
     }
 
     pub fn set_game_state(&mut self, game_state: GameState) {
