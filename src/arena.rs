@@ -8,7 +8,6 @@ use crate::{
     value::SCALE,
 };
 use core::f32;
-use core::ops::Range;
 use std::{
     f32::consts::SQRT_2,
     fmt::Debug,
@@ -61,13 +60,13 @@ impl Arena {
     fn create_linked_list(&mut self) {
         let cap = self.node_list.len();
         for i in 1..cap - 1 {
-            self.node_list[i].set_next(Some((i + 1).into()));
-            self.node_list[i].set_prev(Some((i - 1).into()));
+            self.node_list[i].set_next(Some((i - 1).into()));
+            self.node_list[i].set_prev(Some((i + 1).into()));
         }
-        self.node_list[0].set_next(Some(1.into()));
-        self.lru_head = 0.into();
-        self.node_list[cap - 1].set_prev(Some((cap - 2).into()));
-        self.lru_tail = (cap - 1).into();
+        self.node_list[0].set_prev(Some(1.into()));
+        self.lru_tail = 0.into();
+        self.node_list[cap - 1].set_next(Some((cap - 2).into()));
+        self.lru_head = (cap - 1).into();
     }
 
     pub fn reset(&mut self) {
@@ -88,11 +87,6 @@ impl Arena {
         idx
     }
 
-    fn parent_edge_mut(&mut self, idx: ArenaIndex) -> Option<&mut Node> {
-        let parent = self[idx].parent()?;
-        Some(&mut self[parent])
-    }
-
     pub const fn nodes(&self) -> u64 {
         self.nodes
     }
@@ -108,52 +102,42 @@ impl Arena {
         self[ptr].remove_children();
     }
 
-    #[allow(dead_code)]
     /// `ArenaIndex` returned is the start of the contiguous chunk, and it is guaranteed to be at
     /// least as long as the `required_size` parameter
     fn get_contiguous_chunk(&mut self, required_size: usize) -> ArenaIndex {
         assert!(required_size > 0);
         let mut tail = self.lru_tail;
-        // First see if we can steal it from another node that already had the memory allocated but
-        // probably isn't going to use it any time soon.
-        loop {
-            if tail == self.root {
-                break;
-            }
+        while tail != self.root {
+            // First see if we can steal it from another node that already had the memory allocated but
+            // hasn't used it in a while
             if self[tail].num_children() >= required_size {
                 let child_start = self[tail].first_child();
                 self.remove_children(tail);
                 self.move_to_front(tail);
                 return child_start;
             }
-            tail = self[tail].prev().unwrap();
-        }
 
-        // If that fails, try counting backwards to get the right number of spaces from consecutively
-        // unused nodes. Go backwards because at the beginning of the program, lru_tail is the last
-        // node in the arena.
-        let mut tail = self.lru_tail;
-        loop {
-            if tail == self.root {
-                break;
-            }
-            let x = usize::from(tail);
+            // If that fails, try counting forwards to get the right number of spaces from consecutively
+            // unused nodes.
             if !self[tail].has_children() {
-                let mut successful = true;
+                let x = usize::from(tail);
+                let mut is_contiguous = true;
 
                 for i in 0..required_size {
-                    if self[ArenaIndex::from(x - i)].parent().is_some() {
-                        successful = false;
+                    if self[ArenaIndex::from(x + i)].parent().is_some() {
+                        is_contiguous = false;
                         break;
                     }
                 }
 
-                if successful {
-                    return ArenaIndex::from(x - required_size + 1);
+                if is_contiguous {
+                    return tail;
                 }
             }
+
             tail = self[tail].prev().unwrap();
         }
+
         panic!("My code didn't work :(");
     }
 
@@ -165,9 +149,8 @@ impl Arena {
         self.lru_tail = prev;
         // Some nodes need to tell their parents they don't exist anymore, but only nodes that
         // have actually been initialized
-        if let Some(parent) = self.parent_edge_mut(tail) {
-            todo!();
-            //parent.set_child(None);
+        if let Some(parent) = self[tail].parent() {
+            self.remove_children(parent);
         }
         tail
     }
@@ -216,14 +199,17 @@ impl Arena {
     fn expand(&mut self, ptr: ArenaIndex, board: &HistorizedBoard) {
         assert!(!self[ptr].has_children() && !self[ptr].is_terminal(), "{:?}", self[ptr]);
 
-        todo!();
-        //self[ptr].set_edges(
-        //    board
-        //        .policies()
-        //        .into_iter()
-        //        .map(|(m, pol)| Edge::new(m, None, pol))
-        //        .collect::<Box<[_]>>(),
-        //);
+        let policies = board.policies();
+        let start = self.get_contiguous_chunk(policies.len());
+        self[ptr].expand(start, policies.len() as u8);
+        for i in 0..policies.len() {
+            let (m, pol) = policies[i];
+            let mut new_board = board.clone();
+            new_board.make_move(m);
+            let node = Node::new(new_board.game_state(), Some(ptr), m, pol);
+            self[ArenaIndex::from(usize::from(start) + i)] = node;
+            self.move_to_front(ArenaIndex::from(usize::from(start) + i));
+        }
     }
 
     fn evaluate(&self, ptr: ArenaIndex, board: &HistorizedBoard) -> f32 {

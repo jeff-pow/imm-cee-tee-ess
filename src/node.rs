@@ -77,6 +77,11 @@ impl Node {
         self.first_child.unwrap()
     }
 
+    pub const fn expand(&mut self, first_child: ArenaIndex, num_children: u8) {
+        self.first_child = Some(first_child);
+        self.num_children = num_children;
+    }
+
     pub fn num_children(&self) -> usize {
         usize::from(self.num_children)
     }
@@ -150,11 +155,11 @@ impl Node {
         self.total_score
     }
 
-    pub fn policy(&self) -> f32 {
+    pub const fn policy(&self) -> f32 {
         self.policy
     }
 
-    pub fn m(&self) -> Move {
+    pub const fn m(&self) -> Move {
         self.m
     }
 }
