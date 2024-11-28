@@ -27,7 +27,7 @@ impl GameState {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub struct Node {
     game_state: GameState,
 
@@ -71,6 +71,17 @@ impl Node {
         self.num_children = 0;
     }
 
+    pub fn zero_out(&mut self) {
+        self.game_state = GameState::default();
+        self.parent = None;
+        self.m = Move::NULL;
+        self.policy = 0.0;
+        self.visits = 0;
+        self.total_score = 0.0;
+        self.first_child = None;
+        self.num_children = 0;
+    }
+
     pub fn is_terminal(&self) -> bool {
         self.game_state.is_terminal()
     }
@@ -85,8 +96,12 @@ impl Node {
         self.num_children > 0 && self.first_child.is_some()
     }
 
-    pub const fn first_child(&self) -> ArenaIndex {
-        self.first_child.unwrap()
+    pub const fn first_child(&self) -> Option<ArenaIndex> {
+        self.first_child
+    }
+
+    pub fn set_first_child(&mut self, first_child: ArenaIndex) {
+        self.first_child = Some(first_child);
     }
 
     pub const fn expand(&mut self, first_child: ArenaIndex, num_children: u8) {
