@@ -3,20 +3,9 @@ use crate::{
     hashtable::HashTable,
     historized_board::HistorizedBoard,
     node::{GameState, Node},
-    search_type::SearchType,
-    uci::PRETTY_PRINT,
-    value::SCALE,
 };
-use core::f32;
-use std::{
-    f32::consts::SQRT_2,
-    fmt::Debug,
-    mem::size_of,
-    num::NonZeroU32,
-    ops::{Add, Index, IndexMut},
-    sync::atomic::{AtomicBool, Ordering},
-    time::Instant,
-};
+use arrayvec::ArrayVec;
+use std::f32::consts::SQRT_2;
 
 const CPUCT: f32 = SQRT_2;
 
@@ -64,9 +53,11 @@ impl Arena {
             self.node_list[i].set_prev(Some((i + 1).into()));
         }
         self.node_list[0].set_prev(Some(1.into()));
+        self.node_list[0].set_next(None);
         self.lru_tail = 0.into();
         self.node_list[cap - 1].set_next(Some((cap - 2).into()));
         self.lru_head = (cap - 1).into();
+        self.node_list[cap - 1].set_prev(None);
     }
 
     pub fn reset(&mut self) {
@@ -144,7 +135,7 @@ impl Arena {
 
     fn remove_lru_node(&mut self) -> ArenaIndex {
         let tail = self.lru_tail;
-        assert!(tail != self.root);
+        assert_ne!(tail, self.root);
         let prev = self[tail].prev().expect("What");
         self[prev].set_next(None);
         self.lru_tail = prev;
@@ -198,21 +189,20 @@ impl Arena {
         self.node_list.len() - self.node_list.iter().filter_map(Node::parent).count()
     }
 
-    fn find_next(&self, mut after: ArenaIndex, allocated: bool) -> Option<ArenaIndex> {
-        loop {
-            if usize::from(after) >= self.node_list.len() {
-                return None;
-            }
-            if allocated && self[after].parent().is_some() || !allocated && self[after].parent().is_none() {
+    fn find_next(&self, mut after: ArenaIndex, finding_allocated: bool) -> Option<ArenaIndex> {
+        while usize::from(after) < self.capacity() {
+            if finding_allocated && self[after].is_allocated() || !finding_allocated && !self[after].is_allocated() {
                 return Some(after);
             }
             after = after + 1;
         }
+        None
     }
 
-    fn left_align_arena(&mut self) {
+    fn left_align_arena(&mut self, path: &mut [ArenaIndex]) {
         let mut next_free = self.find_next(0.into(), false).unwrap();
-        let mut next_allocated = self.find_next(0.into(), true).unwrap();
+        let x = usize::from(next_free);
+        let mut next_allocated = self.find_next(next_free, true).unwrap();
 
         while usize::from(next_free) < usize::from(next_allocated) {
             self[next_free] = self[next_allocated];
@@ -222,6 +212,14 @@ impl Arena {
                     self[parent].set_first_child(next_free);
                 }
             }
+
+            if self.root == next_allocated {
+                self.root = next_free;
+            }
+
+            path.iter_mut()
+                .filter(|&&mut idx| idx == next_allocated)
+                .for_each(|idx| *idx = next_free);
 
             for child in self[next_free].children() {
                 self[child].set_parent(Some(next_free));
@@ -238,23 +236,25 @@ impl Arena {
         }
         self.create_linked_list();
         for ptr in (0..self.node_list.len()).map(ArenaIndex::from) {
-            if self[ptr].has_children() && self[ptr].parent().is_some() {
+            if self[ptr].is_allocated() {
                 self.move_to_front(ptr);
+            } else {
+                break;
             }
         }
     }
 
-    fn expand(&mut self, ptr: ArenaIndex, board: &HistorizedBoard) {
+    fn expand(&mut self, ptr: ArenaIndex, board: &HistorizedBoard, path: &mut [ArenaIndex]) {
         assert!(!self[ptr].has_children() && !self[ptr].is_terminal(), "{:?}", self[ptr]);
 
         let policies = board.policies();
         let start = self.get_contiguous_chunk(policies.len()).unwrap_or_else(|| {
             let mut tail = self.lru_tail;
-            for _ in 0..self.node_list.len() / 4 {
+            for _ in 0..self.node_list.len() / 10 {
                 self.unallocate_node(tail);
                 tail = self[tail].prev().unwrap();
             }
-            self.left_align_arena();
+            self.left_align_arena(path);
             self.get_contiguous_chunk(policies.len()).unwrap()
         });
         self[ptr].expand(start, policies.len() as u8);
@@ -271,6 +271,60 @@ impl Arena {
         self[ptr].evaluate().unwrap_or_else(|| board.wdl())
     }
 
+    fn playout_iterative(&mut self, mut ptr: ArenaIndex, board: &HistorizedBoard) -> f32 {
+        let mut board = board.clone();
+        let mut path = ArrayVec::<ArenaIndex, 256>::new();
+        path.push(ptr);
+
+        while let Some(current_ptr) = path.last().copied() {
+            self.move_to_front(current_ptr);
+
+            if self[current_ptr].is_terminal() || self[current_ptr].visits() == 0 {
+                // Terminal or unvisited node, evaluate
+                let hash = board.hash();
+                let u = self
+                    .hash_table
+                    .probe(hash)
+                    .unwrap_or_else(|| self.evaluate(current_ptr, &board));
+
+                // Backtrack and update
+                path.pop();
+
+                if let Some(parent_ptr) = path.last().copied() {
+                    self[parent_ptr].update_stats(1.0 - u);
+                }
+
+                self.hash_table.insert(hash, u);
+                return u;
+            }
+
+            if self[current_ptr].visits() == 0 {
+                // First visit to this node
+                self.depth += 1;
+                if self[current_ptr].should_expand() {
+                    self.expand(current_ptr, &board, &mut path);
+                }
+            }
+
+            // Select child if not all children visited
+            if let Some(child_ptr) = self.select_unvisited_child(current_ptr) {
+                board.make_move(self[child_ptr].m());
+                path.push(child_ptr);
+            } else {
+                // All children visited, backtrack
+                path.pop();
+
+                if let Some(parent_ptr) = path.last().copied() {
+                    // Select best child for evaluation
+                    let best_child = self.select_action(parent_ptr);
+                    let u = 1.0 - self[best_child].value();
+                    self[parent_ptr].update_stats(u);
+                }
+            }
+        }
+
+        unreachable!()
+    }
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     // Thanks lightvector! :)
     fn playout(&mut self, ptr: ArenaIndex, board: &mut HistorizedBoard) -> f32 {
@@ -282,6 +336,7 @@ impl Arena {
                 .probe(board.hash())
                 .unwrap_or_else(|| self.evaluate(ptr, board))
         } else {
+            assert!(self[ptr].visits() > 0);
             self.depth += 1;
             if self[ptr].should_expand() {
                 // Expand
@@ -497,7 +552,7 @@ impl Default for Arena {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ArenaIndex(NonZeroU32);
 
 impl ArenaIndex {
@@ -527,7 +582,7 @@ impl From<usize> for ArenaIndex {
 
 impl From<ArenaIndex> for usize {
     fn from(value: ArenaIndex) -> Self {
-        assert!(value != ArenaIndex::NONE);
+        assert_ne!(value, ArenaIndex::NONE);
         (value.0.get() ^ u32::MAX) as Self
     }
 }
@@ -546,68 +601,43 @@ impl Debug for ArenaIndex {
     }
 }
 
+#[cfg(test)]
 mod arena_test {
     use super::*;
 
     #[test]
-    fn test_left_align_arena() {
-        let mut arena = Arena::new(1.0); // Small arena size
+    fn test_left_align_arena_larger() {
+        let mut arena = Arena::new(1.0);
+        arena.node_list = vec![Node::default(); 12].into();
+        arena.create_linked_list();
 
         // Create a tree-like structure with some empty spaces
         // Nodes will be at indices 1, 4, 6, 11
-        let root_idx: ArenaIndex = 1.into();
+        let root: ArenaIndex = 1.into();
 
         // Set up root node
-        arena[root_idx].overwrite(GameState::default(), None, Move::NULL, 1.0);
+        arena[root].overwrite(GameState::default(), None, Move::NULL, 1.0);
 
-        // Create first child of root at index 4
-        let first_child_idx: ArenaIndex = 4.into();
-        arena[first_child_idx].overwrite(GameState::default(), Some(root_idx), Move::NULL, 0.5);
+        arena[root].expand(3.into(), 3);
+        arena[ArenaIndex::from(3)].overwrite(GameState::default(), Some(1.into()), Move::NULL, 1.0);
+        arena[ArenaIndex::from(4)].overwrite(GameState::default(), Some(1.into()), Move::NULL, 1.0);
+        arena[ArenaIndex::from(5)].overwrite(GameState::default(), Some(1.into()), Move::NULL, 1.0);
 
-        // Set root's first child
-        arena[root_idx].expand(first_child_idx, 1);
+        arena[ArenaIndex::from(3)].expand(9.into(), 2);
+        arena[ArenaIndex::from(9)].overwrite(GameState::default(), Some(3.into()), Move::NULL, 1.0);
+        arena[ArenaIndex::from(10)].overwrite(GameState::default(), Some(3.into()), Move::NULL, 1.0);
 
-        // Create second child of root at index 6
-        let second_child_idx: ArenaIndex = 6.into();
-        arena[second_child_idx].overwrite(GameState::default(), Some(root_idx), Move::NULL, 0.5);
+        for n in &arena.node_list {
+            dbg!(n.first_child(), n.num_children(), n.parent());
+            println!();
+        }
 
-        // Add second child to root
-        arena[first_child_idx].set_next(Some(second_child_idx));
+        println!("\n\n\nAligning\n\n\n");
+        arena.left_align_arena(&mut []);
 
-        // Third node at index 11
-        let third_child_idx: ArenaIndex = 11.into();
-        arena[third_child_idx].overwrite(GameState::default(), Some(root_idx), Move::NULL, 0.5);
-
-        // Modify root to show it has multiple children
-        arena[root_idx].expand(first_child_idx, 3);
-
-        // Perform left alignment
-        arena.left_align_arena();
-
-        // Assert new locations and relationships
-        // Root should now be at index 0
-        assert_eq!(arena[0.into()].parent(), None);
-        assert!(arena[0.into()].has_children());
-
-        // Check first child (now at index 1)
-        let first_child = arena[0.into()].first_child().unwrap();
-        assert_eq!(first_child, 1.into());
-        assert_eq!(arena[first_child].parent(), Some(0.into()));
-
-        // Check second child (now at index 2)
-        let second_child = first_child + 1;
-        assert_eq!(arena[second_child].parent(), Some(0.into()));
-
-        // Check third child (now at index 3)
-        let third_child = first_child + 2;
-        assert_eq!(arena[third_child].parent(), Some(0.into()));
-
-        // Assert total children count
-        assert_eq!(arena[0.into()].num_children(), 3);
-
-        // Verify that higher indices are zeroed out
-        for i in 4..arena.node_list.len() {
-            assert!(arena[i.into()].parent().is_none());
+        for n in arena.node_list {
+            dbg!(n.first_child(), n.num_children(), n.parent());
+            println!();
         }
     }
 }

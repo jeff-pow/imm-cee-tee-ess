@@ -113,6 +113,10 @@ impl Node {
         usize::from(self.num_children)
     }
 
+    pub const fn is_allocated(&self) -> bool {
+        self.has_children() || self.parent().is_some()
+    }
+
     pub fn children(&self) -> impl Iterator<Item = ArenaIndex> {
         self.first_child
             .map(|first_child| {
