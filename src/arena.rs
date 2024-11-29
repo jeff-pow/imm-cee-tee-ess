@@ -3,9 +3,19 @@ use crate::{
     hashtable::HashTable,
     historized_board::HistorizedBoard,
     node::{GameState, Node},
+    search_type::SearchType,
+    uci::PRETTY_PRINT,
+    value::SCALE,
 };
 use arrayvec::ArrayVec;
-use std::f32::consts::SQRT_2;
+use std::{
+    f32::consts::SQRT_2,
+    fmt::Debug,
+    num::NonZeroU32,
+    ops::{Add, Index, IndexMut},
+    sync::atomic::{AtomicBool, Ordering},
+    time::Instant,
+};
 
 const CPUCT: f32 = SQRT_2;
 
@@ -19,6 +29,17 @@ pub struct Arena {
 
     lru_head: ArenaIndex,
     lru_tail: ArenaIndex,
+}
+
+struct PathEntry {
+    ptr: ArenaIndex,
+    hash: u64,
+}
+
+impl PathEntry {
+    fn new(ptr: ArenaIndex, hash: u64) -> Self {
+        Self { ptr, hash }
+    }
 }
 
 impl Arena {
@@ -199,9 +220,8 @@ impl Arena {
         None
     }
 
-    fn left_align_arena(&mut self, path: &mut [ArenaIndex]) {
+    fn left_align_arena(&mut self, path: &mut [PathEntry]) {
         let mut next_free = self.find_next(0.into(), false).unwrap();
-        let x = usize::from(next_free);
         let mut next_allocated = self.find_next(next_free, true).unwrap();
 
         while usize::from(next_free) < usize::from(next_allocated) {
@@ -217,9 +237,10 @@ impl Arena {
                 self.root = next_free;
             }
 
+            assert!(!path.iter().any(|entry| entry.ptr == next_free));
             path.iter_mut()
-                .filter(|&&mut idx| idx == next_allocated)
-                .for_each(|idx| *idx = next_free);
+                .filter(|entry| entry.ptr == next_allocated)
+                .for_each(|entry| entry.ptr = next_free);
 
             for child in self[next_free].children() {
                 self[child].set_parent(Some(next_free));
@@ -244,7 +265,7 @@ impl Arena {
         }
     }
 
-    fn expand(&mut self, ptr: ArenaIndex, board: &HistorizedBoard, path: &mut [ArenaIndex]) {
+    fn expand(&mut self, ptr: ArenaIndex, board: &HistorizedBoard, path: &mut [PathEntry]) {
         assert!(!self[ptr].has_children() && !self[ptr].is_terminal(), "{:?}", self[ptr]);
 
         let policies = board.policies();
@@ -271,59 +292,40 @@ impl Arena {
         self[ptr].evaluate().unwrap_or_else(|| board.wdl())
     }
 
-    fn playout_iterative(&mut self, mut ptr: ArenaIndex, board: &HistorizedBoard) -> f32 {
+    fn playout_iterative(&mut self, board: &HistorizedBoard) {
         let mut board = board.clone();
-        let mut path = ArrayVec::<ArenaIndex, 256>::new();
-        path.push(ptr);
+        let mut path = ArrayVec::<PathEntry, 256>::new();
+        let mut ptr = self.root;
+        path.push(PathEntry::new(ptr, board.hash()));
 
-        while let Some(current_ptr) = path.last().copied() {
-            self.move_to_front(current_ptr);
-
-            if self[current_ptr].is_terminal() || self[current_ptr].visits() == 0 {
-                // Terminal or unvisited node, evaluate
-                let hash = board.hash();
-                let u = self
+        let mut u = loop {
+            if self[ptr].is_terminal() || self[ptr].visits() == 0 || path.is_full() {
+                break self
                     .hash_table
-                    .probe(hash)
-                    .unwrap_or_else(|| self.evaluate(current_ptr, &board));
-
-                // Backtrack and update
-                path.pop();
-
-                if let Some(parent_ptr) = path.last().copied() {
-                    self[parent_ptr].update_stats(1.0 - u);
-                }
-
-                self.hash_table.insert(hash, u);
-                return u;
+                    .probe(board.hash())
+                    .unwrap_or_else(|| self.evaluate(ptr, &board));
+            }
+            self.depth += 1;
+            if self[ptr].should_expand() {
+                self.expand(ptr, &board, &mut path);
             }
 
-            if self[current_ptr].visits() == 0 {
-                // First visit to this node
-                self.depth += 1;
-                if self[current_ptr].should_expand() {
-                    self.expand(current_ptr, &board, &mut path);
-                }
-            }
+            // Select
+            ptr = self.select_action(ptr);
 
-            // Select child if not all children visited
-            if let Some(child_ptr) = self.select_unvisited_child(current_ptr) {
-                board.make_move(self[child_ptr].m());
-                path.push(child_ptr);
-            } else {
-                // All children visited, backtrack
-                path.pop();
+            board.make_move(self[ptr].m());
 
-                if let Some(parent_ptr) = path.last().copied() {
-                    // Select best child for evaluation
-                    let best_child = self.select_action(parent_ptr);
-                    let u = 1.0 - self[best_child].value();
-                    self[parent_ptr].update_stats(u);
-                }
-            }
+            path.push(PathEntry::new(ptr, board.hash()));
+        };
+
+        for PathEntry { ptr, hash: _ } in path.into_iter().rev() {
+            u = 1.0 - u;
+            self[ptr].update_stats(u);
+
+            // TODO: Not sure which u to use here
+            //self.hash_table.insert(hash, u);
+            assert!((0.0..=1.0).contains(&u));
         }
-
-        unreachable!()
     }
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     // Thanks lightvector! :)
@@ -340,7 +342,7 @@ impl Arena {
             self.depth += 1;
             if self[ptr].should_expand() {
                 // Expand
-                self.expand(ptr, board);
+                self.expand(ptr, board, &mut []);
             }
 
             // Select
@@ -496,10 +498,8 @@ impl Arena {
         loop {
             self.depth = 0;
 
-            let u = self.playout(self.root, &mut board.clone());
-
-            assert_eq!(root, self.root);
-            self[root].update_stats(u);
+            //let u = self.playout(self.root, &mut board.clone());
+            self.playout_iterative(board);
 
             self.nodes += 1;
             max_depth = self.depth.max(max_depth);
