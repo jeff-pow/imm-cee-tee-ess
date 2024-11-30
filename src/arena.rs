@@ -8,6 +8,7 @@ use crate::{
     uci::PRETTY_PRINT,
     value::SCALE,
 };
+use arrayvec::ArrayVec;
 use std::{
     f32::consts::SQRT_2,
     fmt::Debug,
@@ -19,6 +20,17 @@ use std::{
 };
 
 const CPUCT: f32 = SQRT_2;
+
+struct PathEntry {
+    ptr: ArenaIndex,
+    hash: u64,
+}
+
+impl PathEntry {
+    fn new(ptr: ArenaIndex, hash: u64) -> Self {
+        Self { ptr, hash }
+    }
+}
 
 pub struct Arena {
     node_list: Box<[Node]>,
@@ -178,19 +190,23 @@ impl Arena {
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     // Thanks lightvector! :)
-    fn playout(&mut self, ptr: ArenaIndex, board: &mut HistorizedBoard) -> f32 {
-        self.move_to_front(ptr);
-        let hash = board.hash();
-        // Simulate
-        let u = if self[ptr].is_terminal() || self[ptr].visits() == 0 {
-            self.hash_table
-                .probe(board.hash())
-                .unwrap_or_else(|| self.evaluate(ptr, board))
-        } else {
+    fn playout_iterative(&mut self, board: &HistorizedBoard) {
+        let mut board = board.clone();
+        let mut path = ArrayVec::<PathEntry, 256>::new();
+        let mut ptr = self.root;
+        path.push(PathEntry::new(ptr, board.hash()));
+
+        let mut u = loop {
+            self.move_to_front(ptr);
+            if self[ptr].is_terminal() || self[ptr].visits() == 0 || path.is_full() {
+                break self
+                    .hash_table
+                    .probe(board.hash())
+                    .unwrap_or_else(|| self.evaluate(ptr, &board));
+            }
             self.depth += 1;
             if self[ptr].should_expand() {
-                // Expand
-                self.expand(ptr, board);
+                self.expand(ptr, &board);
             }
 
             // Select
@@ -198,24 +214,24 @@ impl Arena {
 
             board.make_move(self[ptr].edges()[edge_idx].m());
 
-            let child_ptr = self[ptr].edges()[edge_idx].child().unwrap_or_else(|| {
-                let child_ptr = self.insert(board, Some(ptr), edge_idx);
+            ptr = self[ptr].edges()[edge_idx].child().unwrap_or_else(|| {
+                let child_ptr = self.insert(&board, Some(ptr), edge_idx);
                 self[ptr].edges_mut()[edge_idx].set_child(Some(child_ptr));
                 child_ptr
             });
 
-            let u = self.playout(child_ptr, board);
-
-            // Backpropagation
-            self[child_ptr].update_stats(u);
-
-            u
+            path.push(PathEntry::new(ptr, board.hash()));
         };
-        self.move_to_front(ptr);
-        self.hash_table.insert(hash, u);
 
-        assert!((0.0..=1.0).contains(&u));
-        1. - u
+        for PathEntry { ptr, hash } in path.into_iter().rev() {
+            self.move_to_front(ptr);
+
+            self.hash_table.insert(hash, u);
+            self[ptr].update_stats(1. - u);
+
+            u = 1.0 - u;
+            assert!((0.0..=1.0).contains(&u));
+        }
     }
 
     // Section 3.4 https://project.dke.maastrichtuniversity.nl/games/files/phd/Chaslot_thesis.pdf
@@ -351,9 +367,10 @@ impl Arena {
         loop {
             self.depth = 0;
 
-            let u = self.playout(self.root, &mut board.clone());
+            //let u = self.playout(self.root, &mut board.clone());
+            //self[root].update_stats(u);
+            self.playout_iterative(board);
             assert_eq!(root, self.root);
-            self[root].update_stats(u);
 
             self.nodes += 1;
             max_depth = self.depth.max(max_depth);
