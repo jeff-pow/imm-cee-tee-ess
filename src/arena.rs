@@ -78,13 +78,15 @@ impl Arena {
     fn create_linked_list(&mut self) {
         let cap = self.node_list.len();
         for i in 1..cap - 1 {
-            self.node_list[i].set_next(Some((i + 1).into()));
-            self.node_list[i].set_prev(Some((i - 1).into()));
+            self.node_list[i].set_next(Some((i - 1).into()));
+            self.node_list[i].set_prev(Some((i + 1).into()));
         }
-        self.node_list[0].set_next(Some(1.into()));
-        self.lru_head = 0.into();
-        self.node_list[cap - 1].set_prev(Some((cap - 2).into()));
-        self.lru_tail = (cap - 1).into();
+        self.node_list[0].set_prev(Some(1.into()));
+        self.node_list[0].set_next(None);
+        self.lru_tail = 0.into();
+        self.node_list[cap - 1].set_next(Some((cap - 2).into()));
+        self.lru_head = (cap - 1).into();
+        self.node_list[cap - 1].set_prev(None);
     }
 
     pub fn reset(&mut self) {
