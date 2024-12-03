@@ -8,6 +8,7 @@ use crate::{
     uci::PRETTY_PRINT,
     value::SCALE,
 };
+use arrayvec::ArrayVec;
 use std::{
     f32::consts::SQRT_2,
     fmt::Debug,
@@ -19,6 +20,18 @@ use std::{
 };
 
 const CPUCT: f32 = SQRT_2;
+
+struct PathEntry {
+    ptr: ArenaIndex,
+    edge_idx: u8,
+    hash: u64,
+}
+
+impl PathEntry {
+    const fn new(ptr: ArenaIndex, edge_idx: u8, hash: u64) -> Self {
+        Self { ptr, edge_idx, hash }
+    }
+}
 
 pub struct Arena {
     node_list: Box<[Node]>,
@@ -187,6 +200,60 @@ impl Arena {
         self[ptr].evaluate().unwrap_or_else(|| board.wdl())
     }
 
+    fn playout_iterative(&mut self, board: &HistorizedBoard) {
+        let mut board = board.clone();
+        let mut path = ArrayVec::<PathEntry, 256>::new();
+        let mut ptr = self.root;
+
+        let mut u = loop {
+            self.move_to_front(ptr);
+            if self[ptr].is_terminal()
+                || self.parent_edge(ptr).map_or(self.root_visits, Edge::visits) == 0
+                || path.is_full()
+            {
+                break 1.
+                    - self
+                        .hash_table
+                        .probe(board.hash())
+                        .unwrap_or_else(|| self.evaluate(ptr, &board));
+            }
+            self.depth += 1;
+            if self[ptr].should_expand() {
+                self.expand(ptr, &board);
+            }
+
+            // Select
+            let edge_idx = self.select_action(
+                ptr,
+                self.parent_edge(ptr).map_or(self.root_visits, Edge::visits),
+                self.parent_edge(ptr).map_or(self.root_total_score, Edge::total_score),
+            );
+
+            board.make_move(self[ptr].edges()[edge_idx].m());
+
+            path.push(PathEntry::new(ptr, edge_idx as u8, board.hash()));
+
+            ptr = self[ptr].edges()[edge_idx].child().unwrap_or_else(|| {
+                let child_ptr = self.insert(&board, Some(ptr), edge_idx);
+                self[ptr].edges_mut()[edge_idx].set_child(Some(child_ptr));
+                child_ptr
+            });
+        };
+
+        for PathEntry { ptr, edge_idx, hash } in path.into_iter().rev() {
+            self.move_to_front(ptr);
+
+            self[ptr].edges_mut()[edge_idx as usize].update_stats(u);
+            //self.hash_table.insert(hash, u);
+            u = 1.0 - u;
+
+            assert!((0.0..=1.0).contains(&u));
+        }
+
+        self.root_total_score += u;
+        self.root_visits += 1;
+    }
+
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     // Thanks lightvector! :)
     fn playout(
@@ -234,7 +301,7 @@ impl Arena {
             u
         };
         self.move_to_front(ptr);
-        self.hash_table.insert(hash, u);
+        //self.hash_table.insert(hash, u);
 
         assert!((0.0..=1.0).contains(&u));
         1. - u
@@ -369,9 +436,10 @@ impl Arena {
         loop {
             self.depth = 0;
 
-            let u = self.playout(self.root, &mut board.clone(), self.root_visits, self.root_total_score);
-            self.root_visits += 1;
-            self.root_total_score += u;
+            self.playout_iterative(board);
+            //let u = self.playout(self.root, &mut board.clone(), self.root_visits, self.root_total_score);
+            //self.root_visits += 1;
+            //self.root_total_score += u;
 
             self.nodes += 1;
             max_depth = self.depth.max(max_depth);
