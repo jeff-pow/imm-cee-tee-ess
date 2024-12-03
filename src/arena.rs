@@ -200,8 +200,11 @@ impl Arena {
         self[ptr].evaluate().unwrap_or_else(|| board.wdl())
     }
 
+    // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
+    // Thanks lightvector! :)
     fn playout_iterative(&mut self, board: &HistorizedBoard) {
         let mut board = board.clone();
+        let og_hash = board.hash();
         let mut path = ArrayVec::<PathEntry, 256>::new();
         let mut ptr = self.root;
 
@@ -244,67 +247,15 @@ impl Arena {
             self.move_to_front(ptr);
 
             self[ptr].edges_mut()[edge_idx as usize].update_stats(u);
-            //self.hash_table.insert(hash, u);
             u = 1.0 - u;
+            self.hash_table.insert(hash, u);
 
             assert!((0.0..=1.0).contains(&u));
         }
 
         self.root_total_score += u;
         self.root_visits += 1;
-    }
-
-    // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
-    // Thanks lightvector! :)
-    fn playout(
-        &mut self,
-        ptr: ArenaIndex,
-        board: &mut HistorizedBoard,
-        parent_visits: i32,
-        parent_total_score: f32,
-    ) -> f32 {
-        self.move_to_front(ptr);
-        let hash = board.hash();
-        // Simulate
-        let u = if self[ptr].is_terminal() || parent_visits == 0 {
-            self.hash_table
-                .probe(board.hash())
-                .unwrap_or_else(|| self.evaluate(ptr, board))
-        } else {
-            self.depth += 1;
-            if self[ptr].should_expand() {
-                // Expand
-                self.expand(ptr, board);
-            }
-
-            // Select
-            let edge_idx = self.select_action(ptr, parent_visits, parent_total_score);
-
-            board.make_move(self[ptr].edges()[edge_idx].m());
-
-            let child_ptr = self[ptr].edges()[edge_idx].child().unwrap_or_else(|| {
-                let child_ptr = self.insert(board, Some(ptr), edge_idx);
-                self[ptr].edges_mut()[edge_idx].set_child(Some(child_ptr));
-                child_ptr
-            });
-
-            let u = self.playout(
-                child_ptr,
-                board,
-                self[ptr].edges()[edge_idx].visits(),
-                self[ptr].edges()[edge_idx].total_score(),
-            );
-
-            // Backpropagation
-            self[ptr].edges_mut()[edge_idx].update_stats(u);
-
-            u
-        };
-        self.move_to_front(ptr);
-        //self.hash_table.insert(hash, u);
-
-        assert!((0.0..=1.0).contains(&u));
-        1. - u
+        self.hash_table.insert(og_hash, 1. - u);
     }
 
     // Section 3.4 https://project.dke.maastrichtuniversity.nl/games/files/phd/Chaslot_thesis.pdf
