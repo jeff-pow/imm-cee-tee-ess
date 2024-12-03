@@ -41,9 +41,6 @@ pub struct Arena {
     previous_board: Option<HistorizedBoard>,
     root: ArenaIndex,
 
-    root_visits: i32,
-    root_total_score: f32,
-
     lru_head: ArenaIndex,
     lru_tail: ArenaIndex,
 }
@@ -62,8 +59,6 @@ impl Arena {
             node_list: arena.into_boxed_slice(),
             hash_table,
             root: ArenaIndex::NONE,
-            root_visits: 0,
-            root_total_score: 0.,
             depth: 0,
             nodes: 0,
             lru_head: ArenaIndex::NONE,
@@ -94,8 +89,6 @@ impl Arena {
         self.create_linked_list();
         self.root = ArenaIndex::NONE;
         self.hash_table.clear();
-        self.root_visits = 0;
-        self.root_total_score = 0.;
         self.depth = 0;
         self.nodes = 0;
     }
@@ -107,10 +100,6 @@ impl Arena {
         self.insert_at_head(idx);
 
         idx
-    }
-
-    fn parent_edge(&self, idx: ArenaIndex) -> Option<&Edge> {
-        Some(&self[self[idx].parent()?].edges()[self[idx].parent_edge_idx()])
     }
 
     fn parent_edge_mut(&mut self, idx: ArenaIndex) -> Option<&mut Edge> {
@@ -212,10 +201,7 @@ impl Arena {
 
         let mut u = loop {
             self.move_to_front(ptr);
-            if self[ptr].is_terminal()
-                || self.parent_edge(ptr).map_or(self.root_visits, Edge::visits) == 0
-                || path.is_full()
-            {
+            if self[ptr].is_terminal() || self[ptr].visits() == 0 || path.is_full() {
                 break 1.
                     - self
                         .hash_table
@@ -228,11 +214,7 @@ impl Arena {
             }
 
             // Select
-            let edge_idx = self.select_action(
-                ptr,
-                self.parent_edge(ptr).map_or(self.root_visits, Edge::visits),
-                self.parent_edge(ptr).map_or(self.root_total_score, Edge::total_score),
-            );
+            let edge_idx = self.select_action(ptr);
 
             board.make_move(self[ptr].edges()[edge_idx].m());
 
@@ -248,27 +230,22 @@ impl Arena {
         for PathEntry { ptr, edge_idx, hash } in path.into_iter().rev() {
             self.move_to_front(ptr);
 
-            self[ptr].edges_mut()[edge_idx as usize].update_stats(u);
+            let child = self[ptr].edges_mut()[edge_idx as usize].child().unwrap();
+            self[child].update_stats(u);
             u = 1.0 - u;
             self.hash_table.insert(hash, u);
 
             assert!((0.0..=1.0).contains(&u));
         }
 
-        self.root_total_score += u;
-        self.root_visits += 1;
+        let root = self.root;
+        self[root].update_stats(u);
         self.hash_table.insert(og_hash, 1. - u);
     }
 
     // Section 3.4 https://project.dke.maastrichtuniversity.nl/games/files/phd/Chaslot_thesis.pdf
     fn final_move_selection(&self, ptr: ArenaIndex) -> Option<&Edge> {
-        let f = |edge: &Edge| {
-            if edge.visits() == 0 {
-                f32::NEG_INFINITY
-            } else {
-                edge.q()
-            }
-        };
+        let f = |edge: &Edge| edge.child().map_or(f32::NEG_INFINITY, |child| self[child].q());
         self[ptr]
             .edges()
             .iter()
@@ -277,7 +254,16 @@ impl Arena {
 
     fn display_stats(&self) {
         for edge in self[self.root].edges() {
-            println!("{} - n: {:8}  -  Q: {}", edge.m(), edge.visits(), edge.q());
+            if let Some(child) = edge.child() {
+                println!(
+                    "{} - n: {:8}  -  Q: {}",
+                    edge.m(),
+                    self[child].visits(),
+                    self[child].q()
+                );
+            } else {
+                println!("{} - unvisited", edge.m());
+            }
         }
     }
 
@@ -310,20 +296,23 @@ impl Arena {
 
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     /// Returns a usize indexing into the edge that should be selected next
-    fn select_action(&self, ptr: ArenaIndex, parent_edge_visits: i32, parent_total_score: f32) -> usize {
+    fn select_action(&self, ptr: ArenaIndex) -> usize {
         assert!(!self[ptr].edges().is_empty());
+        let parent_total_score = self[ptr].total_score();
+        let parent_visits = self[ptr].visits();
 
         self[ptr]
             .edges()
             .iter()
-            .map(|child| {
-                let q = if child.visits() == 0 {
-                    1. - (parent_total_score / parent_edge_visits as f32)
+            .map(|edge| {
+                let q = if edge.child().is_none_or(|c| self[c].visits() == 0) {
+                    1. - (parent_total_score / parent_visits as f32)
                 } else {
-                    child.q()
+                    self[edge.child().unwrap()].q()
                 };
 
-                q + CPUCT * child.policy() * (parent_edge_visits as f32).sqrt() / (1 + child.visits()) as f32
+                let child_visits = edge.child().map_or(0, |child| self[child].visits());
+                q + CPUCT * edge.policy() * (parent_visits as f32).sqrt() / (1 + child_visits) as f32
             })
             .enumerate()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
@@ -332,7 +321,7 @@ impl Arena {
     }
 
     pub fn print_uci(&self, nodes: u64, search_start: Instant, max_depth: u64, avg_depth: u64) {
-        let q = self.final_move_selection(self.root).unwrap().q();
+        let q = self[self.final_move_selection(self.root).unwrap().child().unwrap()].q();
         print!(
             "info time {} depth {} seldepth {} score cp {} nodes {} nps {} hashfull {:.0} pv ",
             search_start.elapsed().as_millis(),
@@ -370,8 +359,6 @@ impl Arena {
                 self.reset();
                 self.root = self.insert(board, None, usize::MAX);
             } else if new_root != self.root {
-                self.root_visits = self.parent_edge(new_root).map_or(0, Edge::visits);
-                self.root_total_score = self.parent_edge(new_root).map_or(0.0, Edge::total_score);
                 self[new_root].make_root();
                 self.root = new_root;
             }
@@ -390,9 +377,6 @@ impl Arena {
             self.depth = 0;
 
             self.playout_iterative(board);
-            //let u = self.playout(self.root, &mut board.clone(), self.root_visits, self.root_total_score);
-            //self.root_visits += 1;
-            //self.root_total_score += u;
 
             self.nodes += 1;
             max_depth = self.depth.max(max_depth);
