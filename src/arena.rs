@@ -201,11 +201,10 @@ impl Arena {
         let mut u = loop {
             self.move_to_front(ptr);
             if self[ptr].is_terminal() || self[ptr].visits() == 0 || path.is_full() {
-                break 1.
-                    - self
-                        .hash_table
-                        .probe(board.hash())
-                        .unwrap_or_else(|| self.evaluate(ptr, &board));
+                break self
+                    .hash_table
+                    .probe(board.hash())
+                    .unwrap_or_else(|| self.evaluate(ptr, &board));
             }
             self.depth += 1;
             if self[ptr].should_expand() {
@@ -222,15 +221,16 @@ impl Arena {
                 self[ptr].edges_mut()[edge_idx].set_child(Some(child_ptr));
                 child_ptr
             });
+
             path.push(PathEntry::new(ptr, board.hash()));
         };
 
         for PathEntry { ptr, hash } in path.into_iter().rev() {
             self.move_to_front(ptr);
 
-            self[ptr].update_stats(u);
-            u = 1.0 - u;
             self.hash_table.insert(hash, u);
+            u = 1.0 - u;
+            self[ptr].update_stats(u);
 
             assert!((0.0..=1.0).contains(&u));
         }
