@@ -46,10 +46,12 @@ pub enum MoveType {
 /// bit  6-11: destination square (from 0 to 63)
 /// bit 12-15: special move flag
 /// NOTE: en passant bit is set only when a pawn can be captured
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct Move(pub u16);
 
 impl Move {
+    pub const NULL: Self = Self(0);
+
     pub const fn new(origin: Square, destination: Square, move_type: MoveType) -> Self {
         Self(origin.0 as u16 | ((destination.0 as u16) << 6) | ((move_type as u16) << 12))
     }

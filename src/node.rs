@@ -1,4 +1,4 @@
-use crate::{arena::ArenaIndex, edge::Edge};
+use crate::{arena::ArenaIndex, chess_move::Move};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub enum GameState {
@@ -26,10 +26,14 @@ impl GameState {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub struct Node {
     game_state: GameState,
-    edges: Box<[Edge]>,
+
+    m: Move,
+    first_child: Option<ArenaIndex>,
+    num_children: u8,
+    policy: f32,
 
     visits: i32,
     total_score: f32,
@@ -37,21 +41,44 @@ pub struct Node {
     prev: Option<ArenaIndex>,
     next: Option<ArenaIndex>,
     parent: Option<ArenaIndex>,
-    edge_idx: u8,
 }
 
 impl Node {
-    pub fn new(game_state: GameState, parent: Option<ArenaIndex>, edge_idx: usize) -> Self {
+    pub const fn new(game_state: GameState, parent: Option<ArenaIndex>, m: Move, policy: f32) -> Self {
         Self {
             game_state,
-            edges: Box::new([]),
             prev: None,
             next: None,
             parent,
-            edge_idx: edge_idx as u8,
-            visits: 0,
             total_score: 0.0,
+            visits: 0,
+            m,
+            policy,
+            first_child: None,
+            num_children: 0,
         }
+    }
+
+    pub fn overwrite(&mut self, game_state: GameState, parent: Option<ArenaIndex>, m: Move, policy: f32) {
+        self.game_state = game_state;
+        self.parent = parent;
+        self.m = m;
+        self.policy = policy;
+        self.visits = 0;
+        self.total_score = 0.0;
+        self.first_child = None;
+        self.num_children = 0;
+    }
+
+    pub fn zero_out(&mut self) {
+        self.game_state = GameState::default();
+        self.parent = None;
+        self.m = Move::NULL;
+        self.policy = 0.0;
+        self.visits = 0;
+        self.total_score = 0.0;
+        self.first_child = None;
+        self.num_children = 0;
     }
 
     pub fn is_terminal(&self) -> bool {
@@ -63,19 +90,51 @@ impl Node {
     }
 
     pub fn should_expand(&self) -> bool {
-        self.game_state == GameState::Ongoing && self.edges.is_empty()
+        self.game_state == GameState::Ongoing && self.num_children == 0
     }
 
-    pub const fn edges(&self) -> &[Edge] {
-        &self.edges
+    pub const fn has_children(&self) -> bool {
+        // Theoretically you only need one of these checks but extra
+        // confidence never hurt anyone :)
+        self.num_children > 0 && self.first_child.is_some()
     }
 
-    pub fn edges_mut(&mut self) -> &mut [Edge] {
-        &mut self.edges
+    pub const fn first_child(&self) -> Option<ArenaIndex> {
+        self.first_child
     }
 
-    pub fn set_edges(&mut self, edges: Box<[Edge]>) {
-        self.edges = edges;
+    pub fn set_first_child(&mut self, first_child: ArenaIndex) {
+        self.first_child = Some(first_child);
+    }
+
+    pub const fn expand(&mut self, first_child: ArenaIndex, num_children: u8) {
+        self.first_child = Some(first_child);
+        self.num_children = num_children;
+    }
+
+    pub fn num_children(&self) -> usize {
+        usize::from(self.num_children)
+    }
+
+    pub const fn is_allocated(&self) -> bool {
+        self.has_children() || self.parent().is_some()
+    }
+
+    pub fn children(&self) -> impl Iterator<Item = ArenaIndex> {
+        self.first_child
+            .map(|first_child| {
+                let start = usize::from(first_child);
+                let end = start + usize::from(self.num_children);
+                start..end
+            })
+            .into_iter()
+            .flatten()
+            .map(usize::into)
+    }
+
+    pub fn remove_children(&mut self) {
+        self.num_children = 0;
+        self.first_child = None;
     }
 
     pub const fn prev(&self) -> Option<ArenaIndex> {
@@ -98,14 +157,15 @@ impl Node {
         self.parent
     }
 
-    pub fn parent_edge_idx(&self) -> usize {
-        self.edge_idx.into()
+    pub const fn set_parent(&mut self, parent: Option<ArenaIndex>) {
+        self.parent = parent;
     }
 
     /// Remove parent node status
     pub fn make_root(&mut self) {
         self.parent = None;
-        self.edge_idx = u8::MAX;
+        self.m = Move::NULL;
+        self.policy = 1.0;
     }
 
     pub fn set_game_state(&mut self, game_state: GameState) {
@@ -131,5 +191,13 @@ impl Node {
 
     pub const fn total_score(&self) -> f32 {
         self.total_score
+    }
+
+    pub const fn policy(&self) -> f32 {
+        self.policy
+    }
+
+    pub const fn m(&self) -> Move {
+        self.m
     }
 }
