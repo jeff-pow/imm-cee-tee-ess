@@ -1,4 +1,4 @@
-use crate::{arena::ArenaIndex, chess_move::Move};
+use crate::{arena::NodeIndex, chess_move::Move};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub enum GameState {
@@ -31,24 +31,20 @@ pub struct Node {
     game_state: GameState,
 
     m: Move,
-    first_child: Option<ArenaIndex>,
+    first_child: Option<NodeIndex>,
     num_children: u8,
     policy: f32,
 
     visits: i32,
     total_score: f32,
 
-    prev: Option<ArenaIndex>,
-    next: Option<ArenaIndex>,
-    parent: Option<ArenaIndex>,
+    parent: Option<NodeIndex>,
 }
 
 impl Node {
-    pub const fn new(game_state: GameState, parent: Option<ArenaIndex>, m: Move, policy: f32) -> Self {
+    pub const fn new(game_state: GameState, parent: Option<NodeIndex>, m: Move, policy: f32) -> Self {
         Self {
             game_state,
-            prev: None,
-            next: None,
             parent,
             total_score: 0.0,
             visits: 0,
@@ -59,7 +55,7 @@ impl Node {
         }
     }
 
-    pub fn overwrite(&mut self, game_state: GameState, parent: Option<ArenaIndex>, m: Move, policy: f32) {
+    pub fn overwrite(&mut self, game_state: GameState, parent: Option<NodeIndex>, m: Move, policy: f32) {
         self.game_state = game_state;
         self.parent = parent;
         self.m = m;
@@ -70,7 +66,7 @@ impl Node {
         self.num_children = 0;
     }
 
-    pub fn zero_out(&mut self) {
+    pub fn clear(&mut self) {
         self.game_state = GameState::default();
         self.parent = None;
         self.m = Move::NULL;
@@ -79,6 +75,12 @@ impl Node {
         self.total_score = 0.0;
         self.first_child = None;
         self.num_children = 0;
+    }
+
+    pub fn flip(&mut self, rhs: Self) {
+        let child = self.first_child;
+        *self = rhs;
+        self.first_child = child;
     }
 
     pub fn is_terminal(&self) -> bool {
@@ -99,15 +101,15 @@ impl Node {
         self.num_children > 0 && self.first_child.is_some()
     }
 
-    pub const fn first_child(&self) -> Option<ArenaIndex> {
+    pub const fn first_child(&self) -> Option<NodeIndex> {
         self.first_child
     }
 
-    pub fn set_first_child(&mut self, first_child: ArenaIndex) {
+    pub fn set_first_child(&mut self, first_child: NodeIndex) {
         self.first_child = Some(first_child);
     }
 
-    pub const fn expand(&mut self, first_child: ArenaIndex, num_children: u8) {
+    pub const fn expand(&mut self, first_child: NodeIndex, num_children: u8) {
         self.first_child = Some(first_child);
         self.num_children = num_children;
     }
@@ -120,7 +122,7 @@ impl Node {
         self.has_children() || self.parent().is_some()
     }
 
-    pub fn children(&self) -> impl Iterator<Item = ArenaIndex> {
+    pub fn children(&self) -> impl Iterator<Item = NodeIndex> {
         self.first_child
             .map(|first_child| {
                 let start = usize::from(first_child);
@@ -137,27 +139,11 @@ impl Node {
         self.first_child = None;
     }
 
-    pub const fn prev(&self) -> Option<ArenaIndex> {
-        self.prev
-    }
-
-    pub fn set_prev(&mut self, prev: Option<ArenaIndex>) {
-        self.prev = prev;
-    }
-
-    pub const fn next(&self) -> Option<ArenaIndex> {
-        self.next
-    }
-
-    pub fn set_next(&mut self, next: Option<ArenaIndex>) {
-        self.next = next;
-    }
-
-    pub const fn parent(&self) -> Option<ArenaIndex> {
+    pub const fn parent(&self) -> Option<NodeIndex> {
         self.parent
     }
 
-    pub const fn set_parent(&mut self, parent: Option<ArenaIndex>) {
+    pub const fn set_parent(&mut self, parent: Option<NodeIndex>) {
         self.parent = parent;
     }
 

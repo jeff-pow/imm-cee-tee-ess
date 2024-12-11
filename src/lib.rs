@@ -24,6 +24,7 @@ mod historized_board;
 mod magics;
 pub mod movegen;
 mod node;
+mod node_buffer;
 mod perft;
 pub mod policy;
 mod search_type;
