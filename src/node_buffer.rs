@@ -47,7 +47,7 @@ impl NodeBuffer {
     pub fn clear_references(&mut self) {
         for node in &mut self.nodes {
             if let Some(child) = node.first_child() {
-                if child.half() == self.half {
+                if child.half() != self.half  {
                     node.remove_children();
                 }
             }

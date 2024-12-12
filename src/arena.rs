@@ -97,13 +97,14 @@ impl Arena {
 
         let old = self.current_half;
         self.current_half ^= 1;
-        self.node_buffers[old].clear_references();
         self.node_buffers[self.current_half].reset();
 
         let new_root = self.node_buffers[self.current_half].get_contiguous(1).unwrap();
+        assert_eq!(0, new_root.idx());
         self[new_root].clear();
-
         self.flip_node(old_root, new_root);
+
+        self.node_buffers[old].clear_references();
     }
 
     pub fn root(&self) -> NodeIndex {
@@ -164,6 +165,9 @@ impl Arena {
             self.depth += 1;
             if self[ptr].should_expand() {
                 self.expand(ptr, &board)?;
+            }
+            if self[ptr].num_children() > 0 {
+                assert!(self[ptr].first_child().is_some());
             }
 
             self.ensure_children(ptr)?;
