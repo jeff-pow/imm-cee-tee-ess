@@ -26,6 +26,7 @@ impl NodeBuffer {
     }
 
     pub fn reset(&mut self) {
+        self.nodes.iter_mut().for_each(Node::clear);
         self.len = 0;
     }
 
@@ -37,15 +38,16 @@ impl NodeBuffer {
         let start = self.len;
         self.len += required_length;
 
-        self.nodes[start..self.len].iter_mut().for_each(|n| n.clear());
+        self.nodes[start..self.len].iter_mut().for_each(Node::clear);
 
         Some(NodeIndex::new(self.half, start))
     }
 
-    pub fn clear_references(&mut self, half: usize) {
+
+    pub fn clear_references(&mut self) {
         for node in &mut self.nodes {
             if let Some(child) = node.first_child() {
-                if child.half() == half {
+                if child.half() == self.half {
                     node.remove_children();
                 }
             }

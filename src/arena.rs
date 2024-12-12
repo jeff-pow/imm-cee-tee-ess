@@ -97,7 +97,7 @@ impl Arena {
 
         let old = self.current_half;
         self.current_half ^= 1;
-        self.node_buffers[old].clear_references(old);
+        self.node_buffers[old].clear_references();
         self.node_buffers[self.current_half].reset();
 
         let new_root = self.node_buffers[self.current_half].get_contiguous(1).unwrap();
@@ -312,7 +312,6 @@ impl Arena {
         //}
         self.reset();
         let root = self.contiguous_chunk(1).unwrap();
-        dbg!(root.half(), root.idx());
         self[root] = Node::new(GameState::Ongoing, None, Move::NULL, 1.0);
         let root = self.root();
         self[root].set_game_state(GameState::Ongoing);
