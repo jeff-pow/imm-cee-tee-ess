@@ -37,15 +37,12 @@ pub struct Node {
 
     visits: i32,
     total_score: f32,
-
-    parent: Option<NodeIndex>,
 }
 
 impl Node {
-    pub const fn new(game_state: GameState, parent: Option<NodeIndex>, m: Move, policy: f32) -> Self {
+    pub const fn new(game_state: GameState, m: Move, policy: f32) -> Self {
         Self {
             game_state,
-            parent,
             total_score: 0.0,
             visits: 0,
             m,
@@ -55,20 +52,8 @@ impl Node {
         }
     }
 
-    pub fn overwrite(&mut self, game_state: GameState, parent: Option<NodeIndex>, m: Move, policy: f32) {
-        self.game_state = game_state;
-        self.parent = parent;
-        self.m = m;
-        self.policy = policy;
-        self.visits = 0;
-        self.total_score = 0.0;
-        self.first_child = None;
-        self.num_children = 0;
-    }
-
     pub fn clear(&mut self) {
         self.game_state = GameState::default();
-        self.parent = None;
         self.m = Move::NULL;
         self.policy = 0.0;
         self.visits = 0;
@@ -78,9 +63,7 @@ impl Node {
     }
 
     pub fn flip(&mut self, rhs: Self) {
-        let child = self.first_child;
         *self = rhs;
-        self.first_child = child;
     }
 
     pub fn is_terminal(&self) -> bool {
@@ -118,10 +101,6 @@ impl Node {
         usize::from(self.num_children)
     }
 
-    pub const fn is_allocated(&self) -> bool {
-        self.has_children() || self.parent().is_some()
-    }
-
     pub fn children(&self) -> impl Iterator<Item = NodeIndex> {
         self.first_child
             .map(|first_child| {
@@ -139,17 +118,8 @@ impl Node {
         self.first_child = None;
     }
 
-    pub const fn parent(&self) -> Option<NodeIndex> {
-        self.parent
-    }
-
-    pub const fn set_parent(&mut self, parent: Option<NodeIndex>) {
-        self.parent = parent;
-    }
-
     /// Remove parent node status
     pub fn make_root(&mut self) {
-        self.parent = None;
         self.m = Move::NULL;
         self.policy = 1.0;
     }

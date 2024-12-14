@@ -89,6 +89,7 @@ impl Arena {
         for (i, child) in self[ptr].children().enumerate() {
             self.flip_node(child, start + i);
         }
+        self[ptr].set_first_child(start);
         Some(())
     }
 
@@ -131,12 +132,14 @@ impl Arena {
 
         let policies = board.policies();
         let start = self.contiguous_chunk(policies.len())?;
+
         self[ptr].expand(start, policies.len() as u8);
+        assert!(self[ptr].has_children());
         for i in 0..policies.len() {
             let (m, pol) = policies[i];
             let mut new_board = board.clone();
             new_board.make_move(m);
-            self[start + i].overwrite(new_board.game_state(), Some(ptr), m, pol);
+            self[start + i] = Node::new(new_board.game_state(), m, pol);
         }
 
         Some(())
@@ -165,9 +168,7 @@ impl Arena {
             self.depth += 1;
             if self[ptr].should_expand() {
                 self.expand(ptr, &board)?;
-            }
-            if self[ptr].num_children() > 0 {
-                assert!(self[ptr].first_child().is_some());
+                assert!(self[ptr].has_children(), "{}", board.board());
             }
 
             self.ensure_children(ptr)?;
@@ -316,7 +317,7 @@ impl Arena {
         //}
         self.reset();
         let root = self.contiguous_chunk(1).unwrap();
-        self[root] = Node::new(GameState::Ongoing, None, Move::NULL, 1.0);
+        self[root] = Node::new(GameState::Ongoing, Move::NULL, 1.0);
         let root = self.root();
         self[root].set_game_state(GameState::Ongoing);
 
@@ -330,6 +331,7 @@ impl Arena {
 
             if self.playout(board).is_none() && !halt.load(Ordering::Relaxed) {
                 self.flip_halves();
+                println!("Flipping");
             }
 
             self.nodes += 1;
