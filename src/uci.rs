@@ -47,7 +47,7 @@ pub fn main_loop() -> ! {
             "isready" => println!("readyok"),
             "ucinewgame" => {
                 halt.store(false, Ordering::Relaxed);
-                arena.reset();
+                arena.reset_completely();
             }
             "eval" => println!(
                 "Raw eval: {:.3}\nEval post scaling: {} cp\nWDL: {:.5}",
@@ -76,7 +76,7 @@ pub fn main_loop() -> ! {
             }
             "setoption" => match input[..] {
                 ["setoption", "name", "Hash", "value", x] => arena = Arena::new(x.parse().unwrap()),
-                ["setoption", "name", "Clear", "Hash", _x] => arena.reset(),
+                ["setoption", "name", "Clear", "Hash", _x] => arena.reset_completely(),
                 ["setoption", "name", "Threads", "value", _x] => (),
                 _ => println!("Option not recognized"),
             },

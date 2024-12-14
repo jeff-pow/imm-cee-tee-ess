@@ -27,7 +27,6 @@ impl NodeBuffer {
 
     pub fn reset(&mut self) {
         self.len = 0;
-        self.nodes.iter_mut().for_each(|n| *n = Node::default());
     }
 
     pub fn get_contiguous(&mut self, required_length: usize) -> Option<NodeIndex> {

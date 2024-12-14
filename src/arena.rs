@@ -60,11 +60,18 @@ impl Arena {
         }
     }
 
-    pub fn reset(&mut self) {
+    pub fn reset_completely(&mut self) {
         self.node_buffers.iter_mut().for_each(NodeBuffer::reset);
+        self.current_half = 0;
         self.hash_table.clear();
         self.depth = 0;
         self.nodes = 0;
+        self.previous_board = None;
+    }
+
+    pub fn reset_tree(&mut self) {
+        self.node_buffers.iter_mut().for_each(NodeBuffer::reset);
+        self.current_half = 0;
     }
 
     pub fn contiguous_chunk(&mut self, required_size: usize) -> Option<NodeIndex> {
@@ -299,25 +306,25 @@ impl Arena {
         report: bool,
     ) -> Move {
         let search_start = Instant::now();
+        self.nodes = 0;
 
-        //if let Some(new_root) = self.reuse_tree(board) {
-        //    if !self[new_root].has_children() {
-        //        self.reset();
-        //        let root = self.contiguous_chunk(1).unwrap();
-        //        self[root] = Node::new(GameState::Ongoing, None, Move::NULL, 1.0);
-        //    } else if new_root != self.root() {
-        //        self[new_root].make_root();
-        //        let old_root = self.root();
-        //        self[old_root].clear();
-        //    }
-        //} else {
-        //    self.reset();
-        //    let root = self.contiguous_chunk(1).unwrap();
-        //    self[root] = Node::new(GameState::Ongoing, None, Move::NULL, 1.0);
-        //}
-        self.reset();
-        let root = self.contiguous_chunk(1).unwrap();
-        self[root] = Node::new(GameState::Ongoing, Move::NULL, 1.0);
+        if let Some(new_root) = self.reuse_tree(board) {
+            if !self[new_root].has_children() {
+                self.reset_tree();
+                let root = self.contiguous_chunk(1).unwrap();
+                self[root] = Node::new(GameState::Ongoing, Move::NULL, 1.0);
+            } else if new_root != self.root() {
+                self[new_root].make_root();
+                let old_root = self.root();
+                self[old_root].clear();
+                self.flip_node(new_root, self.root());
+            }
+        } else {
+            self.reset_tree();
+            let root = self.contiguous_chunk(1).unwrap();
+            self[root] = Node::new(GameState::Ongoing, Move::NULL, 1.0);
+        }
+
         let root = self.root();
         self[root].set_game_state(GameState::Ongoing);
 

@@ -14,7 +14,7 @@ pub fn bench() {
 
     for fen in BENCH_POSITIONS {
         let board: HistorizedBoard = fen.into();
-        arena.reset();
+        arena.reset_completely();
         arena.start_search(&board, &halt, search_type, false);
         nodes += arena.nodes();
     }

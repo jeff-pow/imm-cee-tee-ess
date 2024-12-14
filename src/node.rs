@@ -30,9 +30,10 @@ impl GameState {
 pub struct Node {
     game_state: GameState,
 
-    m: Move,
     first_child: Option<NodeIndex>,
     num_children: u8,
+
+    m: Move,
     policy: f32,
 
     visits: i32,
