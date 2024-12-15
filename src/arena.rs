@@ -238,9 +238,6 @@ impl Arena {
                 temp_board.make_move(self[first_child].m());
                 temp_board.make_move(self[second_child].m());
 
-                if !self[second_child].has_children() {
-                    continue;
-                }
                 if temp_board == *board {
                     return Some(second_child);
                 }
