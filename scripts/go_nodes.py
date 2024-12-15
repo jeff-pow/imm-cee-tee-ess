@@ -7,7 +7,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 pgn = open("game.pgn")
 game = chess.pgn.read_game(pgn)
-base = chess.engine.SimpleEngine.popen_uci("./imm-cee-tee-ess", debug=True)
+base = chess.engine.SimpleEngine.popen_uci("../imm-cee-tee-ess", debug=True)
 base.configure({"Threads": 1, "Hash": 32})
 
 # Determine which side the engine is playing
