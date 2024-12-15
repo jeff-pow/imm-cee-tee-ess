@@ -41,8 +41,6 @@ impl NodeBuffer {
         let start = self.len;
         self.len += required_length;
 
-        self.nodes[start..self.len].iter_mut().for_each(Node::clear);
-
         Some(NodeIndex::new(self.half, start))
     }
 
