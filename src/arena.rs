@@ -79,12 +79,7 @@ impl Arena {
     }
 
     pub fn flip_node(&mut self, from: NodeIndex, to: NodeIndex) {
-        if from == to {
-            return;
-        }
-
-        let from = self[from];
-        self[to].flip(from);
+        self[to] = self[from];
     }
 
     #[must_use]
@@ -229,6 +224,10 @@ impl Arena {
     }
 
     fn reuse_tree(&self, board: &HistorizedBoard) -> Option<NodeIndex> {
+        if self.node_buffers.iter().all(NodeBuffer::empty) {
+            return None;
+        }
+
         let previous_board = self.previous_board.as_ref()?;
 
         for first_child in self[self.root()].children().filter(|&child| self[child].visits() > 0) {
@@ -313,6 +312,7 @@ impl Arena {
                 let root = self.contiguous_chunk(1).unwrap();
                 self[root] = Node::new(GameState::Ongoing, Move::NULL, 1.0);
             } else if new_root != self.root() {
+                println!("Reused!");
                 self[new_root].make_root();
                 let old_root = self.root();
                 self[old_root].clear();

@@ -63,10 +63,6 @@ impl Node {
         self.num_children = 0;
     }
 
-    pub fn flip(&mut self, rhs: Self) {
-        *self = rhs;
-    }
-
     pub fn is_terminal(&self) -> bool {
         self.game_state.is_terminal()
     }

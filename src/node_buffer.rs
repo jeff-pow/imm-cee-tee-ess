@@ -29,6 +29,10 @@ impl NodeBuffer {
         self.len = 0;
     }
 
+    pub const fn empty(&self) -> bool {
+        self.len == 0
+    }
+
     pub fn get_contiguous(&mut self, required_length: usize) -> Option<NodeIndex> {
         if self.len + required_length > self.nodes.len() {
             return None;
