@@ -36,7 +36,6 @@ pub struct Arena {
     node_buffers: [NodeBuffer; 2],
     current_half: usize,
     hash_table: HashTable,
-    depth: u64,
     nodes: u64,
     previous_board: Option<HistorizedBoard>,
 }
@@ -54,7 +53,6 @@ impl Arena {
             node_buffers: [NodeBuffer::new(cap / 2, 0), NodeBuffer::new(cap / 2, 1)],
             current_half: 0,
             hash_table,
-            depth: 0,
             nodes: 0,
             previous_board: None,
         }
@@ -64,7 +62,6 @@ impl Arena {
         self.node_buffers.iter_mut().for_each(NodeBuffer::reset);
         self.current_half = 0;
         self.hash_table.clear();
-        self.depth = 0;
         self.nodes = 0;
         self.previous_board = None;
     }
@@ -154,7 +151,7 @@ impl Arena {
     // https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md#doing-monte-carlo-graph-search-correctly
     // Thanks lightvector! :)
     #[must_use]
-    fn playout(&mut self, board: &HistorizedBoard) -> Option<()> {
+    fn playout(&mut self, board: &HistorizedBoard, depth: &mut u64) -> Option<()> {
         let mut board = board.clone();
         let mut path = ArrayVec::<PathEntry, 256>::new();
         let mut ptr = self.root();
@@ -167,7 +164,7 @@ impl Arena {
                     .probe(board.hash())
                     .unwrap_or_else(|| self.evaluate(ptr, &board));
             }
-            self.depth += 1;
+            *depth += 1;
             if self[ptr].should_expand() {
                 self.expand(ptr, &board)?;
                 assert!(self[ptr].has_children(), "{}", board.board());
@@ -333,17 +330,17 @@ impl Arena {
         let mut timer = Instant::now();
 
         loop {
-            self.depth = 0;
+            let mut depth = 0;
 
-            if self.playout(board).is_none() && !halt.load(Ordering::Relaxed) {
+            if self.playout(board, &mut depth).is_none() && !halt.load(Ordering::Relaxed) {
                 self.flip_halves();
-                println!("Flipping");
+                continue;
             }
 
             self.nodes += 1;
-            max_depth = self.depth.max(max_depth);
+            max_depth = depth.max(max_depth);
 
-            total_depth += self.depth;
+            total_depth += depth;
 
             if total_depth / self.nodes > running_avg_depth && report {
                 running_avg_depth = total_depth / self.nodes;
