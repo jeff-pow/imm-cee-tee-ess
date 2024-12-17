@@ -115,16 +115,6 @@ impl Arena {
         self.nodes
     }
 
-    pub const fn capacity(&self) -> usize {
-        self.node_buffers.len()
-    }
-
-    pub const fn hash_full(&self) -> usize {
-        // Not sure if having a parent is the best way to denote this but its only for uci
-        // output anyway so whatevs
-        self.node_buffers[self.current_half].remaining() / (self.capacity() / 2)
-    }
-
     #[must_use]
     fn expand(&mut self, ptr: NodeIndex, board: &HistorizedBoard) -> Option<()> {
         assert!(!self[ptr].has_children() && !self[ptr].is_terminal(), "{:?}", self[ptr]);
@@ -271,14 +261,13 @@ impl Arena {
     pub fn print_uci(&self, nodes: u64, search_start: Instant, max_depth: u64, avg_depth: u64) {
         let q = self[self.final_move_selection(self.root()).unwrap()].q();
         print!(
-            "info time {} depth {} seldepth {} score cp {} nodes {} nps {} hashfull {:.0} pv ",
+            "info time {} depth {} seldepth {} score cp {} nodes {} nps {} pv ",
             search_start.elapsed().as_millis(),
             avg_depth,
             max_depth,
             (-SCALE * ((1. - q) / q).ln()) as i32,
             nodes,
             (nodes as f64 / search_start.elapsed().as_secs_f64()) as i64,
-            self.hash_full() as f64 / 1000.
         );
 
         let mut ptr = Some(self.root());
