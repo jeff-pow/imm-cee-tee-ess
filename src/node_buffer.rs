@@ -4,7 +4,7 @@ use std::ops::{Index, IndexMut};
 #[derive(Debug)]
 pub struct NodeBuffer {
     nodes: Box<[Node]>,
-    len: usize,
+    used: usize,
     half: usize,
 }
 
@@ -12,7 +12,7 @@ impl NodeBuffer {
     pub fn new(cap: usize, half: usize) -> Self {
         Self {
             nodes: vec![Node::default(); cap].into(),
-            len: 0,
+            used: 0,
             half,
         }
     }
@@ -21,25 +21,21 @@ impl NodeBuffer {
         self.nodes.len()
     }
 
-    pub const fn remaining(&self) -> usize {
-        self.capacity() - self.len
-    }
-
     pub fn reset(&mut self) {
-        self.len = 0;
+        self.used = 0;
     }
 
     pub const fn empty(&self) -> bool {
-        self.len == 0
+        self.used == 0
     }
 
     pub fn get_contiguous(&mut self, required_length: usize) -> Option<NodeIndex> {
-        if self.len + required_length > self.nodes.len() {
+        if self.used + required_length > self.capacity() {
             return None;
         }
 
-        let start = self.len;
-        self.len += required_length;
+        let start = self.used;
+        self.used += required_length;
 
         Some(NodeIndex::new(self.half, start))
     }

@@ -94,17 +94,14 @@ impl Arena {
 
     pub fn flip_halves(&mut self) {
         let old_root = self.root();
-
-        let old = self.current_half;
         self.current_half ^= 1;
         self.node_buffers[self.current_half].reset();
 
-        let new_root = self.node_buffers[self.current_half].get_contiguous(1).unwrap();
+        let new_root = self.contiguous_chunk(1).unwrap();
         assert_eq!(0, new_root.idx());
-        self[new_root].clear();
         self.flip_node(old_root, new_root);
 
-        self.node_buffers[old].clear_references();
+        self.node_buffers[self.current_half ^ 1].clear_references();
     }
 
     pub fn root(&self) -> NodeIndex {
@@ -122,7 +119,7 @@ impl Arena {
         let policies = board.policies();
         let start = self.contiguous_chunk(policies.len())?;
 
-        self[ptr].expand(start, policies.len() as u8);
+        self[ptr].expand(start, policies.len());
         assert!(self[ptr].has_children());
         for i in 0..policies.len() {
             let (m, pol) = policies[i];

@@ -89,9 +89,9 @@ impl Node {
         self.first_child = Some(first_child);
     }
 
-    pub const fn expand(&mut self, first_child: NodeIndex, num_children: u8) {
+    pub const fn expand(&mut self, first_child: NodeIndex, num_children: usize) {
         self.first_child = Some(first_child);
-        self.num_children = num_children;
+        self.num_children = num_children as u8;
     }
 
     pub fn num_children(&self) -> usize {
