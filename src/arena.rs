@@ -295,11 +295,9 @@ impl Arena {
                 let root = self.contiguous_chunk(1).unwrap();
                 self[root] = Node::new(GameState::Ongoing, Move::NULL, 1.0);
             } else if new_root != self.root() {
-                println!("Reused!");
                 self[new_root].make_root();
-                let old_root = self.root();
-                self[old_root].clear();
-                self.flip_node(new_root, self.root());
+                let root = self.root();
+                self[root] = self[new_root];
             }
         } else {
             self.reset_tree();
